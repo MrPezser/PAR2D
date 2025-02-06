@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
-#include <mpi.h>
+//#include <mpi.h>
 
 #include "SpatialDiscretization.h"
 #include "Indexing.h"
@@ -238,11 +238,11 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
     }
 
     //Get interior boundary information from other processes
-    MPI_Barrier(MPI_COMM_WORLD);
-    int bnum;
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    //MPI_Barrier(MPI_COMM_WORLD);
+    int bnum = 0;
+    int world_size = 1;
+    //MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    //MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
     int blockflag[4] = {0,0,0,0};
 
 
@@ -252,7 +252,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         int iblk2; //tranfer target
         double* usend;
         double* urecv;
-        MPI_Status status;
+        //MPI_Status status;
 
         // If the block is a neighbor initiate send/recieve with said neighbor
         // If the block is the current block, initiate send/recieve
@@ -288,9 +288,9 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 }
             }
 
-            MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
-                         urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+            //MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
+            //             urecv, ntrans, MPI_DOUBLE, iblk2,0,
+            //             MPI_COMM_WORLD, &status);
 
             if (ACCUR==0) {
                 for (int j = 0; j < ntrans; j++) {
@@ -349,9 +349,9 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 }
             }
 
-            MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
-                         urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+            //MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
+            //             urecv, ntrans, MPI_DOUBLE, iblk2,0,
+            //             MPI_COMM_WORLD, &status);
 
             if (ACCUR==0) {
                 for (int j = 0; j < ntrans; j++) {
@@ -409,9 +409,9 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                     }
                 }
             }
-            MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
-                         urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+            //MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
+            //             urecv, ntrans, MPI_DOUBLE, iblk2,0,
+            //             MPI_COMM_WORLD, &status);
 
             if (ACCUR ==0) {
                 for (int i = 0; i < ntrans; i++) {
@@ -470,9 +470,9 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                     }
                 }
             }
-            MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
-                         urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+            //MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
+            //             urecv, ntrans, MPI_DOUBLE, iblk2,0,
+            //             MPI_COMM_WORLD, &status);
 
             if (ACCUR==0) {
                 for (int i = 0; i < ntrans; i++) {

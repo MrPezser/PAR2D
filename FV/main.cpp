@@ -4,7 +4,7 @@
  */
 #include <iostream>
 #include <cmath>
-#include <mpi.h>
+//#include <mpi.h>
 #include <unistd.h>
 #include "FileIO.h"
 #include "Indexing.h"
@@ -65,13 +65,13 @@ void vec_copy(double n, double* a, double* b){
 int main() {
 
     // Initialize the MPI environment
-    MPI_Init(NULL, NULL);
+    //MPI_Init(NULL, NULL);
     // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    int world_size = 1;
+    //MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     // Get the rank of the process
-    int bnum;
-    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    int bnum = 0;
+    //MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
 
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
@@ -102,13 +102,14 @@ int main() {
     //read in mesh file
     int nblock_file;
     FILE* fconn = nullptr;
-    int bbounds[4];
-    int bids[4]; // bottom, right, top left
+    int bbounds[4]{0,1,2,3};
+    int bids[4]{-1}; // bottom, right, top left
     //for (int iblk=0; iblk<world_size; iblk++) {
     //    if (iblk == bnum) {
             printf("Reading Mesh File..... \n");
             read_mesh(bnum, &nx, &ny, &ibound, &x, &y);
 
+            /*
             printf("Reading Block Connectivity File..... \n");
             fconn = fopen("../Case/grid.conn", "r");
             if (fconn == nullptr) {
@@ -136,6 +137,8 @@ int main() {
             bids[2]--;
             bids[3]--;
             fclose(fconn);
+*/
+
     //    }
     //}
 
@@ -153,7 +156,7 @@ int main() {
     //    MPI_Barrier(MPI_COMM_WORLD);
     //}
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     if (bnum==0) printf("==================== Initializing ====================\n");
     //==================== Setup for Sim ====================
     auto* unk  = (double*)malloc(NVAR*nelem*sizeof(double));
@@ -200,7 +203,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     if (bnum==0) printf("===== Generating Mesh and Initial State Tecplot Files ====\n");
     print_elem_stats("MeshVolumeStats", nx, ny, geoel);
     if (ACCUR==1){
@@ -244,7 +247,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     if (bnum==0) printf("==================== Starting Solver ====================\n");
 
 
@@ -257,6 +260,7 @@ int main() {
         //Find global timestep based off of CFl condition
         dt = find_dt(air, nx, ny, CFL, unk, ElemVar[0], geofa);
         // sync timestep across threads
+        /*
         MPI_Barrier(MPI_COMM_WORLD);
             for (int iblk = 1; iblk < world_size; iblk++) {
                 double buffer = dt;
@@ -279,6 +283,7 @@ int main() {
                     dt = buffer;
                 }
             }
+         */
 
         //calculate the right hand side residual term (change of conserved quantities)
         calc_dudt(bbounds, bids, nx, ny, air, ElemVar, uFS, ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
@@ -365,6 +370,7 @@ int main() {
         }
 
         double rss_gather[2] = {ressumsum, res0sum};
+        /*
         MPI_Barrier(MPI_COMM_WORLD);
         for (int iblk=1; iblk<world_size; iblk++) {
             double buffer[2] = {rss_gather[0], rss_gather[1]};
@@ -378,6 +384,7 @@ int main() {
                 MPI_Send(&buffer, 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
             }
         }
+         */
 
         double duscale;
         for (int ielem=0; ielem<nelem; ielem++){
@@ -469,7 +476,7 @@ int main() {
                 print_state(bnum, "Final State", nx, ny, air, x, y, unk, geoel);
             }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        //MPI_Barrier(MPI_COMM_WORLD);
         if (bnum==0) {
             double relres_gather = rss_gather[0] / rss_gather[1];
             fprintf(fres, "%d,\t%le\n", iter, relres_gather);
@@ -486,23 +493,23 @@ int main() {
             if (world_size > 1) {
                 if (relres_gather < tol) {
                     int buf = 1;
-                    MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+                    //MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
                     printf("Thread %3d breaking main loop.\n", bnum);
                     break;  // and damp >= 1) break;
                 } else {
                     int buf = 0;
-                    MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+                    //MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
                 }
             }
         } else {
             int buf{0};
             if (bnum < world_size-1) {
-                MPI_Status status;
-                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
-                MPI_Send(&buf, 1, MPI_INT, bnum+1, 0, MPI_COMM_WORLD);
+                //MPI_Status status;
+                //MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
+                //MPI_Send(&buf, 1, MPI_INT, bnum+1, 0, MPI_COMM_WORLD);
             } else {
-                MPI_Status status;
-                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
+                //MPI_Status status;
+                //MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
             }
             if (buf ==1) {
                 printf("Thread %3d breaking main loop.\n", bnum);
@@ -511,7 +518,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     sleep(1);
     if (bnum==0) {
         printf("==================== Calculation Finished ====================\n");
@@ -534,5 +541,5 @@ int main() {
     free(resy);
     free(dv);
     printf("%3d Complete.\n",bnum);
-    MPI_Finalize();
+    //MPI_Finalize();
 }
