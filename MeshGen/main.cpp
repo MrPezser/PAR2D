@@ -92,7 +92,7 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
 void get_nozzle(const int nx, double* x, double* y){
     // Uses a given nozzle contour to find the maximum y values fr the given set of x points
 
-    FILE* fcont = fopen("../axicontour_trim_smooth.dat","r");
+    FILE* fcont = fopen("../contour2_prepped.dat","r");
     if (fcont == nullptr) printf("Couldn't open nozzle contour file\n");
     int ncon;
     fscanf(fcont, " %d",&ncon);
@@ -103,9 +103,9 @@ void get_nozzle(const int nx, double* x, double* y){
     for (int icon=0; icon<ncon; icon++){
         fscanf(fcont,"%lf %lf",&z[icon],&r[icon]);
 
-        if (icon > 0) {
-            z[icon] -= z[0];
-        }
+       // if (icon > 0) {
+       //     z[icon] -= z[0];
+       // }
     }
 
     for (int ipoin=0; ipoin<nx; ipoin++){
@@ -172,10 +172,10 @@ int main(int argc, char** argv) {
     // ========== Input Parameters (change to file input) ==========
     double height, length;
     int irefine, nx, ny, nyrefine{};
-    double xstart = 0.0;
-    length = 6.222*IN2M - xstart;//7.75*IN2M - 0.1;
-    nx = 480;
-    ny = 240;
+    double xstart = 0.11*IN2M;
+    length = 5.0*IN2M - xstart;//7.75*IN2M - 0.1;
+    nx = 201;
+    ny = 75;
     double bias = 1.0;
     double y_offset;   // Offset for axisymmetric applications
     y_offset = 0.0;//0.001;
@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
     height = 1.0;
     double ramp_height = 0.15;//0.3;
     double ramp_length = 0.33;//1.0;
-    length = 1.0;//IN2M * (z[nx-1] - z[0]);
+    //length = 1.0;//IN2M * (z[nx-1] - z[0]);
 
     /*
      * ==================== Mesh Generation ====================
@@ -206,9 +206,9 @@ int main(int argc, char** argv) {
 
     //Read in nozzle geometry
     dx = length / (nx-1);
-    //for (int i=0; i<nx; i++) z[i] = (xstart + (i*dx))/IN2M;
-    //get_nozzle(nx, z, r);
-    y_offset = 0.0 ;//0.05 * array_max(nx, r);
+    for (int i=0; i<nx; i++) z[i] = (xstart + (i*dx))/IN2M;
+    get_nozzle(nx, z, r);
+    //y_offset = 0.0 ;//0.05 * array_max(nx, r);
 
     /*
     //Modify upper surface to maintain the same area
@@ -228,8 +228,8 @@ int main(int argc, char** argv) {
     double factor = 2.0;
     for (int i = 0; i < nx; i++) {
         double xi = i * dx;
-        ymax = height + y_offset; //r[i];
-        ymin = ramp_surface(xi, ramp_height, ramp_length);//y_offset;
+        ymax = r[i]; //height + y_offset;
+        ymin = 0.0;//ramp_surface(xi, ramp_height, ramp_length);//y_offset;
         dy = (ymax - ymin) / (ny - 1);
 
         if (irefine==1) {
@@ -281,6 +281,7 @@ int main(int argc, char** argv) {
                 int ip = IU(i, j, nx);
                 x[ip] = xi;
                 y[ip] = (j * dy) + ymin;
+                y[ip] *= IN2M;
                 if (i == nx-1) printf("y, %lf\n", y[ip]);
             }
         }
@@ -304,10 +305,10 @@ int main(int argc, char** argv) {
         int ibot = ib;
 
         //if (ib*dx > 0.2) ibound[ibot] = 4;       //bot surf
-        ibound[ibot] = 0;
+        ibound[ibot] = 4;
 
         //if (ib*dx > 2.0) ibound[itop] = 3;   //top surface
-        ibound[itop] = 0;
+        ibound[itop] = 4;
     }
     //Back Pressure (2) or outflow (3)
     for (int ib = nx-1; ib<nx+ny-2; ib++){
