@@ -79,12 +79,11 @@ int main() {
     CFL = 0.7;
     Thermo air = Thermo();
 
-    p0 = 101235.0;
-
-    u0 = 100.0;
-    T0 = 900.0;
+    p0 = 1000.0;
+    u0 = 1000.0;
+    T0 = 300.0;
     rho0 = p0 / (air.Rs[0]*T0);
-    v0 = 100.0;
+    v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
     int printiter = 1;
     int saveiter = 100;
@@ -342,7 +341,7 @@ int main() {
         //Mechanism for switching between 1st and 2nd order
         double damp = 1.0;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
         //if (iter<= 1.5*(3000.0*(0.3/CFL)*(101.0/101.0))) damp = 0.0;
-        if (iter<= 1000) damp = 0.0;
+        if (iter<= 400) damp = 0.0;
 
 
         if (ACCUR ==1){
@@ -411,7 +410,7 @@ int main() {
                 iujp = iu + IJK(0,1,0,nx-1,NVAR);
                 for (int kvar=0;kvar<NVAR;kvar++){
                     double du;
-                    duscale = 0.45;
+                    duscale = 0.3;
                     int nu = nelem*NVAR;
                     if (iuip < nu-1  and iuim >= 0.0) {
                        du = duscale*((unk[iuip + kvar] - unk[iuim + kvar]) / 2.0);
