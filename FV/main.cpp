@@ -76,7 +76,7 @@ int main() {
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
     tol = 1e-6;
-    CFL = 0.7;
+    CFL = 0.1;
     Thermo air = Thermo();
 
     p0 = 1000.0;
@@ -339,9 +339,9 @@ int main() {
         //perform iteration
 
         //Mechanism for switching between 1st and 2nd order
-        double damp = 1.0;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
+        double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
         //if (iter<= 1.5*(3000.0*(0.3/CFL)*(101.0/101.0))) damp = 0.0;
-        if (iter<= 400) damp = 0.0;
+        //if (iter<= 400) damp = 0.0;
 
 
         if (ACCUR ==1){
@@ -392,15 +392,25 @@ int main() {
             ElemVar[ielem].UpdateState(air);
 
             if (ACCUR ==1) {
-                ux[iu  ] += damp * dvx[iu  ];
-                ux[iu+1] += damp * dvx[iu + 1];
-                ux[iu+2] += damp * dvx[iu + 2];
-                ux[iu+3] += damp * dvx[iu + 3];
+                ux[iu  ] += dvx[iu  ];
+                ux[iu+1] += dvx[iu + 1];
+                ux[iu+2] += dvx[iu + 2];
+                ux[iu+3] += dvx[iu + 3];
 
-                uy[iu  ] += damp * dvy[iu  ];
-                uy[iu+1] += damp * dvy[iu + 1];
-                uy[iu+2] += damp * dvy[iu + 2];
-                uy[iu+3] += damp * dvy[iu + 3];
+                uy[iu  ] += dvy[iu  ];
+                uy[iu+1] += dvy[iu + 1];
+                uy[iu+2] += dvy[iu + 2];
+                uy[iu+3] += dvy[iu + 3];
+
+                ux[iu  ] *= damp; 
+                ux[iu+1] *= damp;
+                ux[iu+2] *= damp;
+                ux[iu+3] *= damp;
+
+                uy[iu  ] *= damp;
+                uy[iu+1] *= damp;
+                uy[iu+2] *= damp;
+                uy[iu+3] *= damp;
 
                 //Slope limiting
                 int iuim, iuip, iujm, iujp;
@@ -410,7 +420,7 @@ int main() {
                 iujp = iu + IJK(0,1,0,nx-1,NVAR);
                 for (int kvar=0;kvar<NVAR;kvar++){
                     double du;
-                    duscale = 0.3;
+                    duscale = 0.7;
                     int nu = nelem*NVAR;
                     if (iuip < nu-1  and iuim >= 0.0) {
                        du = duscale*((unk[iuip + kvar] - unk[iuim + kvar]) / 2.0);

@@ -17,7 +17,7 @@
 #define ACCUR (1)
 #define IAXI (0) ///2D WORKING SUPER GREAT
 #define MXANGLE (0.0)
-#define NITER (7e3)
+#define NITER (21e3)
 
 #define sign(x)  ((std::signbit(x) ?  -1 : 1))
 #define ASSERT(cond, msg) if(!(cond)){printf("Failed Assert: %s:%u %s\n %s\n", __FILE__, __LINE__, #cond, msg); exit(0);}

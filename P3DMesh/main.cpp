@@ -101,18 +101,21 @@ int main(int argc, char *argv[]) {
     for (int ib=0; ib<nbfac; ib++) {
         int bid = -1;
         
-        if (ib <= ipjm){
+        if (ib < ipjm){
             // Bottom Surface
             bid = 4;
-        } else if (ib <= ipjp){
+        } else if (ib < ipjp){
             // Right Boundary
             bid = 3;
-        } else if (ib <= imjp){
+        } else if (ib < imjp){
             // Top Boundary
             bid = 4;
-        } else if (ib <= imjm){
+        } else if (ib < imjm){
             // Left Boundary
             bid = 1;
+        } else {
+            printf("Whoops!\n");
+            exit(0);
         }
 
 
