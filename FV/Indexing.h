@@ -12,7 +12,7 @@
 #define NVAR 4
 #define NDEGR 1
 #define NSP 1
-#define IVISC (1)
+#define IVISC (0)
 #define IGAM (1.4)
 #define ACCUR (1)
 #define IAXI (0) ///2D WORKING SUPER GREAT
