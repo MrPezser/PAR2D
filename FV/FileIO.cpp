@@ -36,6 +36,7 @@ void read_mesh(int bnum, int* nx, int* ny, int** ibound, double** x, double** y)
     printf("::%3d:: (nx,ny)=(%3d,%3d), Now Scanning Nodes....\n",bnum, *nx, *ny);
     for(int ip=0; ip<npoin; ip++){
         fscanf(fmsh,"%le %le", &(*x)[ip], &(*y)[ip]);
+        (*y)[ip] += 1e-4;
     }
     //read BC assignments
     printf("::%3d:: Scanning BCs\n",bnum);

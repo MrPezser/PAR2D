@@ -80,13 +80,15 @@ int main() {
     Thermo air = Thermo();
 
     p0 = 1000.0;
-    u0 = 1000.0;
+    u0 = 1736.0;
     T0 = 300.0;
     rho0 = p0 / (air.Rs[0]*T0);
     v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
     int printiter = 1;
-    int saveiter = 100;
+    int saveiter = 10;
+    double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
+    double duscale = 0.7;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
     //==================== Load Mesh ====================
@@ -339,7 +341,6 @@ int main() {
         //perform iteration
 
         //Mechanism for switching between 1st and 2nd order
-        double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
         //if (iter<= 1.5*(3000.0*(0.3/CFL)*(101.0/101.0))) damp = 0.0;
         //if (iter<= 400) damp = 0.0;
 
@@ -378,7 +379,6 @@ int main() {
             }
         }
 
-        double duscale;
         for (int ielem=0; ielem<nelem; ielem++){
             int iu = NVAR*ielem;
             unk[iu  ] += dv[iu  ];
@@ -420,7 +420,6 @@ int main() {
                 iujp = iu + IJK(0,1,0,nx-1,NVAR);
                 for (int kvar=0;kvar<NVAR;kvar++){
                     double du;
-                    duscale = 0.7;
                     int nu = nelem*NVAR;
                     if (iuip < nu-1  and iuim >= 0.0) {
                        du = duscale*((unk[iuip + kvar] - unk[iuim + kvar]) / 2.0);
