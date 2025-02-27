@@ -85,15 +85,10 @@ int main() {
     rho0 = p0 / (air.Rs[0]*T0);
     v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
-<<<<<<< HEAD
     int printiter = 1;
     int saveiter = 10;
     double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
     double duscale = 0.7;
-=======
-    int printiter = 10;
-    int saveiter = 1000;
->>>>>>> 51235c507675652ba6b88567cafd2636683dff87
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
     //==================== Load Mesh ====================
@@ -346,17 +341,13 @@ int main() {
         //perform iteration
 
         //Mechanism for switching between 1st and 2nd order
-<<<<<<< HEAD
-=======
-        double damp = 0.9;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
->>>>>>> 51235c507675652ba6b88567cafd2636683dff87
         //if (iter<= 1.5*(3000.0*(0.3/CFL)*(101.0/101.0))) damp = 0.0;
         //if (iter<= 400) damp = 0.0;
 
 
         if (ACCUR ==1){
             for (int i=0; i<NVAR; i++) {
-                ressum[i] += damp*ressumx[i] + damp*ressumy[i];
+                ressum[i] += ressumx[i] + ressumy[i];
             }
         }
         if (iter==0) {
@@ -429,10 +420,6 @@ int main() {
                 iujp = iu + IJK(0,1,0,nx-1,NVAR);
                 for (int kvar=0;kvar<NVAR;kvar++){
                     double du;
-<<<<<<< HEAD
-=======
-                    duscale = 0.5;
->>>>>>> 51235c507675652ba6b88567cafd2636683dff87
                     int nu = nelem*NVAR;
                     if (iuip < nu-1  and iuim >= 0.0) {
                        du = duscale*((unk[iuip + kvar] - unk[iuim + kvar]) / 2.0);

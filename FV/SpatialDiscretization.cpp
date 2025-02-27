@@ -28,21 +28,13 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
         int iint = IJK(i,0,0, nx-1, 4);
         int iel = IJ(i, 0, nx-1);
 
-        //DG extension
-        double xsi, eta;
-        xsi = 0.0;
-        eta = -1.0;
-        get_u_val(&(unk[iint]), ElemVar[iel], air, &(ux[iint]), &(uy[iint]), xsi, eta, unkelij);
-        varij.Initialize(unkelij);
-        varij.UpdateState(air);
-
         //==========Face Normal
         double normx, normy;
         normx = geofa[IJK(i, 0, 1,nx,6)];
         normy = geofa[IJK(i, 0, 2,nx,6)];
         //==========Ghost State
         BotVar[i].Initialize(&(uGBot[IJ(0,i,NVAR)]));
-        boundary_state(btype,air,normx,normy,uFS,unkelij, varij,
+        boundary_state(btype,air,normx,normy,uFS,&unk[iint], ElemVar[iel],
                        &(uGBot[IJ(0,i,NVAR)]));
         BotVar[i].UpdateState(air);
     }
@@ -54,21 +46,13 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
         int iint = IJK(nx-2,j,0, nx-1, NVAR);
         int iel = IJ(nx-2, j, nx-1);
 
-        //DG extension
-        double xsi, eta;
-        xsi = 1.0;
-        eta = 0.0;
-        get_u_val(&(unk[iint]), ElemVar[iel], air, &(ux[iint]), &(uy[iint]), xsi, eta, unkelij);
-        varij.Initialize(unkelij);
-        varij.UpdateState(air);
-
         //==========Face Normal
         double normx, normy;
         normx = geofa[IJK(0, j, 4,nx,6)];
         normy = geofa[IJK(0, j, 5,nx,6)];
         //==========Ghost State
         RightVar[j].Initialize(&(uGRight[IJ(0,j,NVAR)]));
-        boundary_state(btype,air,normx,normy,uFS,unkelij, varij,
+        boundary_state(btype,air,normx,normy,uFS,&unk[iint], ElemVar[iel],
                        &(uGRight[IJ(0,j,NVAR)]));
         RightVar[j].UpdateState(air);
     }
@@ -82,21 +66,13 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
         int iint = IJK(i,ny-2,0, nx-1, NVAR);
         int iel = IJ(i, ny-2, nx-1);
 
-        //DG extension
-        double xsi, eta;
-        xsi = 0.0;
-        eta = 1.0;
-        get_u_val(&(unk[iint]), ElemVar[iel], air, &(ux[iint]), &(uy[iint]), xsi, eta, unkelij);
-        varij.Initialize(unkelij);
-        varij.UpdateState(air);
-
         //==========Face Normal
         double normx, normy;
         normx = -geofa[IJK(i, ny-1, 1,nx,6)];
         normy = -geofa[IJK(i, ny-1, 2,nx,6)];
         //==========Ghost State
         TopVar[i].Initialize(&(uGTop[IJ(0,i,NVAR)]));
-        boundary_state(btype,air,normx,normy,uFS, unkelij, varij,
+        boundary_state(btype,air,normx,normy,uFS, &unk[iint], ElemVar[iel],
                        &(uGTop[IJ(0,i,NVAR)]));
         TopVar[i].UpdateState(air);
     }
@@ -110,21 +86,13 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
         int iint = IJK(0,j,0, nx-1, 4);
         int iel = IJ(0, j, nx-1);
 
-        //DG extension
-        double xsi, eta;
-        xsi = -1.0;
-        eta =  0.0;
-        get_u_val(&(unk[iint]), ElemVar[iel], air, &(ux[iint]), &(uy[iint]), xsi, eta, unkelij);
-        varij.Initialize(unkelij);
-        varij.UpdateState(air);
-
         //==========Face Normal
         double normx, normy;
         normx = -geofa[IJK(0, j, 4,nx,6)];
         normy = -geofa[IJK(0, j, 5,nx,6)];
         //==========Ghost State
         LeftVar[j].Initialize(&(uGLeft[IJ(0,j,NVAR)]));
-        boundary_state(btype,air,normx,normy,uFS, unkelij, varij,
+        boundary_state(btype,air,normx,normy,uFS, &unk[iint], ElemVar[iel],
                        &(uGLeft[IJ(0,j,NVAR)]));
         LeftVar[j].UpdateState(air);
     }

@@ -14,7 +14,7 @@
 #define NSP 1
 #define IVISC (0)
 #define IGAM (1.4)
-#define ACCUR (1)
+#define ACCUR (0)
 #define IAXI (1) ///2D WORKING SUPER GREAT
 #define MXANGLE (0.0)
 #define NITER (1e4)
