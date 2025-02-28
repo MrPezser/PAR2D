@@ -6,37 +6,42 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 int main(int argc, char** argv) {
-    //Partition the given grid into an input number of partitions with given padding
-    if (argc < 4) {printf("Provide number of partitions, ipart, jpart.\n"); exit(0);}
-        
-    int npart = atoi(argv[1]);
-    int ipart = atoi(argv[2]);
-    int jpart = atoi(argv[3]);
-    if (npart != ipart*jpart) {printf("Mismatch between npart and i,jpart\n");exit(0);}
-    
+    // read in a gridpro style multiblock file and partition into a number of smaller domains
+    // gridin.dat = source file
+    // gridin.conn = number, connectivity, and BC of original block file
+    //
+    // grid.conn = output block connectivity and BC
+    // subgrids/grid.block###.dat = output grid blocks
+    int nblock;
+
+    // Read input file for grid metadata
+    FILE* fgconn;
+    fgconn = fopen("./gridinconn.dat","r");
 
     printf("========== READING GRID ==========\n");
-
     FILE* fgrid;
-    fgrid = fopen("./grid.dat","r");
+    fgrid = fopen("./grid_in.dat","r");
 
-    // Make grid connectivity file
-    FILE* fgconn = fopen("./grid.conn","w");
-    fprintf(fgconn,"%d \n", npart);
-    
     int ni, nj;
-    fscanf(fgrid, "%d %d", &ni, &nj);
-
     int npoin = ni * nj;
     int nb = 2*(ni-1) + 2*(nj-1);
-    double x[nj][ni], y[nj][ni];
+    double x[nj][ni][nblk], y[nj][ni][nblk];
     int ibound[nb];
-    
+
+    for (int b=0; b<nblock; b++){ 
+    fscanf(fgrid, "%d %d", &ni, &nj);
     for (int j=0; j<nj; j++){
     for (int i=0; i<ni; i++){
         fscanf(fgrid, "%le %le", &x[j][i], &y[j][i]);
     }
     }
+    }
+    
+}
+
+int block_decomp(int npart, int ipart, int jpart) {
+    //Partition the given grid into an input number of partitions with given padding
+
 
     //read BC assignments
     fscanf(fgrid,"%*s");
