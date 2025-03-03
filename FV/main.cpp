@@ -76,7 +76,7 @@ int main() {
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
     tol = 1e-6;
-    CFL = 0.1;
+    CFL = 0.01;
     Thermo air = Thermo();
 
     p0 = 1000.0;
@@ -86,9 +86,9 @@ int main() {
     v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
     int printiter = 1;
-    int saveiter = 10;
+    int saveiter = 500;
     double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
-    double duscale = 0.7;
+    double duscale = 0.9;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
     //==================== Load Mesh ====================
@@ -132,10 +132,10 @@ int main() {
                     fscanf(fconn, "%*d: (%*d,%*d) (%*d,%*d) (%*d,%*d) (%*d,%*d)");
                 }
             }
-            bids[0]--;
-            bids[1]--;
-            bids[2]--;
-            bids[3]--;
+            //bids[0]--;
+            //bids[1]--;
+            //bids[2]--;
+            //bids[3]--;
             fclose(fconn);
     //    }
     //}
@@ -178,6 +178,11 @@ int main() {
     uFS[1] = u0;
     uFS[2] = v0;
     uFS[3] = T0;
+    
+    uBP[0] = rho0 * sqrt(10);
+    uBP[1] = u0;
+    uBP[2] = v0;
+    uBP[3] = T0 * sqrt(10);
 
     //Plenum State
     ///back pressure here
@@ -257,6 +262,7 @@ int main() {
 
         //Find global timestep based off of CFl condition
         dt = find_dt(air, nx, ny, CFL, unk, ElemVar[0], geofa);
+        //printf("::%3d::Calculated Timestep..... \n", bnum);
         // sync timestep across threads
         MPI_Barrier(MPI_COMM_WORLD);
             for (int iblk = 1; iblk < world_size; iblk++) {
@@ -269,6 +275,7 @@ int main() {
                     MPI_Send(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 }
             }
+        //printf("::%3d::Communicated Timestep..... \n", bnum);
             MPI_Barrier(MPI_COMM_WORLD);
             for (int iblk = 1; iblk < world_size; iblk++) {
                 double buffer = dt;
@@ -284,6 +291,7 @@ int main() {
         //calculate the right hand side residual term (change of conserved quantities)
         calc_dudt(bbounds, bids, nx, ny, air, ElemVar, uFS, ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
         calculate_residual(nx, ny, res, ressum);
+        //printf("::%3d::Calculated dudt..... \n", bnum);
 
         if ( ACCUR == 1 ) {
             calculate_residual(nx, ny, resx, ressumx);

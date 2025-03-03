@@ -68,10 +68,13 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
     uL = uLeft[1];
     vL = uLeft[2];
     vDOTn = uL*normx + vL*normy;
+    //Normal Mach number
+    double MDOTn = vDOTn / varL.a;
 
     // Treat internal boundaries as extrapolation.
     // (ideally they wouldn't be done at all but for now)
     if (btype == -1) btype = 3;
+    if (btype == 5) btype = 2;
     //btype = 1;
 
     //Wall BC
@@ -112,10 +115,12 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
         uBound[3] = uFS[3];
 
         if (btype==2) {         //Back pressure
-            uBound[0] = uBP[0];
-            uBound[1] = uBP[1];
-            uBound[2] = uBP[2];
-            uBound[3] = uBP[3];
+            uRight[0] = uFS[0] * 10;
+            uRight[1] = uFS[1] * 0.1;
+            uRight[2] = uFS[2] * 0.1;
+            uRight[3] = uFS[3] * 10;
+            return;
+
         } else if (btype==3){   //extrapolation / outflow
             uRight[0] = uLeft[0];
             uRight[1] = uLeft[1];
@@ -131,15 +136,13 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
             uRight[0] = pBern / (air.Rs[0]*uFS[3]);
             uRight[1] = uLeft[1];
             uRight[2] = uLeft[2];
-            uRight[3] = uFS[3];
+            uRight[3] = uLeft[3];
             return;
         }
 
 
         //get all interior primitives
 
-        //Normal Mach number
-        double MDOTn = vDOTn / varL.a;
 
         if (MDOTn <= -1) {
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~Supersonic Inflow - fully determined by free stream

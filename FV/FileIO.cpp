@@ -12,7 +12,7 @@ void read_mesh(int bnum, int* nx, int* ny, int** ibound, double** x, double** y)
     int  npoin, nb = {0};
     //==================== Read in mesh file ====================
     char fgname[100];
-    sprintf(fgname,"../Case/subgrids/grid.block%d.dat",bnum+1);
+    sprintf(fgname,"../Case/subgrids/grid.block%d.dat",bnum);//+1);
     FILE* fmsh = fopen(fgname,"r");
     if (fmsh == nullptr) {
         printf("Crap. Couldn't find ya grid file. Proc: %d\nFilename:%s\n",bnum,fgname);

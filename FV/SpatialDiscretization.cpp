@@ -469,6 +469,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             free(urecv);
         }
     }// iblk loop
+    //printf("::%3d::Communicated IntBoundry Ghost Cells..... \n", bnum);
 
 
     //====================Evaluate Flux Contributions====================

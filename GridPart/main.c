@@ -30,9 +30,12 @@ int main(int argc, char** argv) {
         // Boundary info 
         // Neighbor ib >= 0
         // External boundary ib = boundary
-        fscanf(fgconnin,"%d %d %d %d", &ixm[ib], &ixp[ib], &iym[ib], &iyp[ib]); 
-        fscanf(fgconnin,"%d %d", &ipart[ib], &jpart[ib]); 
+        fscanf(fgconnin," %d %d %d %d%*[^\n]", &ixm[ib], &ixp[ib], &iym[ib], &iyp[ib]); 
+        fscanf(fgconnin," %d %d%*[^\n]", &ipart[ib], &jpart[ib]); 
         nbtot += ipart[ib]*jpart[ib];
+
+        printf("Block(%2d): (%3d,%3d) X (%3d,%3d)\n",ib,ixm[ib], ixp[ib], iym[ib], iyp[ib]);
+        printf("(%3d, %3d)\n",ipart[ib], jpart[ib]);
     }
     fclose(fgconnin);
 
@@ -58,8 +61,8 @@ int main(int argc, char** argv) {
             y[b][j] = (double*)malloc(ni[b]*sizeof(double));
         }
         // read block in
-        for (int j=0; j<nj[b]; j++){
         for (int i=0; i<ni[b]; i++){
+        for (int j=0; j<nj[b]; j++){
             fscanf(fgrid, "%le %le %*e", &x[b][j][i], &y[b][j][i]);
         }
         }
@@ -72,11 +75,14 @@ int main(int argc, char** argv) {
     for (int b=0;b<nblock;b++){mxpart = MAX(mxpart, ipart[b]); mxpart = MAX(mxpart, jpart[b]);}
     //
     int blkind[nblock][mxpart][mxpart];       
+    
     for (int b=0;b<nblock;b++){
         for (int j=0;j<jpart[b];j++){
         for (int i=0;i<ipart[b];i++){
             iblk++;
-            blkind[b][i][j] = iblk;
+            blkind[b][j][i] = iblk;
+
+            printf("blkind: %d\n",blkind[b][j][i]);
         }    
         }    
     }
@@ -89,22 +95,22 @@ int main(int argc, char** argv) {
     fprintf(fgconn,"%d\n",nbtot);
     //
     for (int b=0; b<nblock; b++){
-        printf("========== PARTITIONING GRID %d \n",b);
+        printf("\n========== PARTITIONING GRID %d ==========\n",b);
         //Check for partition or grid errors in the input grid
         if(ixm[b] >= 0){
-            if(nj[b]    != nj[ixm[b]])     {printf("Grid(%d) Number Mismatch XM\t%d~%d\n",b, nj[b],nj[ixm[b]]);exit(100);}
+            if(nj[b]    != nj[ixm[b]])     {printf("Grid(%d~%d) Number Mismatch XM\t%d~%d\n",b,ixm[b], nj[b],nj[ixm[b]]);exit(100);}
             if(jpart[b] != jpart[ixm[b]])  {printf("Grid(%d) Partition Mismatch XM\n",b);exit(100);}
         }
         if(ixp[b] >= 0){
-            if(nj[b]    != nj[ixp[b]])     {printf("Grid(%d) Number Mismatch XP\t%d~%d\n",b, nj[b],nj[ixp[b]]);exit(100);}
+            if(nj[b]    != nj[ixp[b]])     {printf("Grid(%d~%d) Number Mismatch XP\t%d~%d\n",b,ixp[b], nj[b],nj[ixp[b]]);exit(100);}
             if(jpart[b] != jpart[ixp[b]])  {printf("Grid(%d) Partition Mismatch XP\n",b);exit(100);}
         }
         if(iym[b] >= 0){
-            if(ni[b]    != ni[iym[b]])     {printf("Grid(%d) Number Mismatch YM\t%d~%d\n",b, ni[b],ni[iym[b]]);exit(100);}
+            if(ni[b]    != ni[iym[b]])     {printf("Grid(%d~%d) Number Mismatch YM\t%d~%d\n",b,iym[b], ni[b],ni[iym[b]]);exit(100);}
             if(ipart[b] != ipart[iym[b]])  {printf("Grid(%d) Partition Mismatch YM\n",b);exit(100);}
         }
         if(iyp[b] >= 0){
-            if(ni[b]    != ni[iyp[b]])     {printf("Grid(%d) Number Mismatch YP\t%d~%d\n",b, ni[b],ni[iyp[b]]);exit(100);}
+            if(ni[b]    != ni[iyp[b]])     {printf("Grid(%d~%d) Number Mismatch YP\t%d~%d\n",b,iyp[b], ni[b],ni[iyp[b]]);exit(100);}
             if(ipart[b] != ipart[iyp[b]])  {printf("Grid(%d) Partition Mismatch YP\n",b);exit(100);}
         }
         //Decompose current block
@@ -116,7 +122,7 @@ int main(int argc, char** argv) {
         // Loop through subblock
         for (int jblock=0; jblock<jpart[b]; jblock++) {
         for (int iblock=0; iblock<ipart[b]; iblock++) {
-            printf("========== WRITING SUBGRID %d:(%2d, %2d) \n",b,iblock,jblock);
+            printf("\n========== WRITING SUBGRID %d:(%2d, %2d) \n",b,iblock,jblock);
             // Get boundary of partition
             int istart = istep*iblock;
             int jstart = jstep*jblock;
@@ -127,7 +133,7 @@ int main(int argc, char** argv) {
             //jstart = MAX(jstart-1, 0);
             int block_num = blkind[b][jblock][iblock];
             //  
-            printf("========== WRITING BLOCK %d ==========\n", block_num );
+            printf("sBLOCK %d\n", block_num );
             //
             char fsgname[50];
             sprintf(fsgname,"./subgrids/grid.block%d.dat",block_num);
@@ -150,54 +156,56 @@ int main(int argc, char** argv) {
             //
             int ileft,iright,idown,iup;
             int bleft,bright,bdown,bup;
+            ileft=-1;iright=-1;idown=-1;iup=-1;
+            bleft=-1;bright=-1;bdown=-1;bup=-1;
             //i<dir> = boundary type
             //ileft  = iblock == 0        ? 0 : -1;
             //iright = iblock == ipart-1  ? 1 : -1;
             //idown  = jblock == 0        ? 2 : -1;
             //iup    = jblock == jpart-1  ? 3 : -1;
             //b<dir> = block number
-            //bleft  = ileft  >= 0 ? -1 : block_num-1;
-            //bright = iright >= 0 ? -1 : block_num+1;
-            //bdown  = idown  >= 0 ? -1 : block_num-ipart;
-            //bup    = iup    >= 0 ? -1 : block_num+ipart;
+            bleft  = block_num-1;
+            bright = block_num+1;
+            bdown  = block_num-ipart[b];
+            bup    = block_num+ipart[b];
             //Corrections to recognize original block structure
             //LEFT
-            if (ixm[b]>= 0){
+            if (ixm[b]>= 0 && iblock==0){
                 int ibn = ixm[b];
                 int iind = ipart[ibn] - 1;
                 bleft = blkind[ibn][jblock][iind];
                 ileft = -1; 
-            } else {
+            } else if (iblock==0) {
                 bleft = -1;
                 ileft = -ixm[b];
             }
             //RIGHT
-            if (ixp[b]>= 0){
+            if (ixp[b]>= 0 && iblock==ipart[b]-1){
                 int ibn = ixp[b];
                 int iind = 0;
                 bright = blkind[ibn][jblock][iind]; 
                 iright = -1; 
-            } else {
+            } else  if (iblock==ipart[b]-1) {
                 bright = -1;
                 iright = -ixp[b];
             }
             //BOT
-            if (iym[b]>= 0){
+            if (iym[b]>= 0 && jblock==0){
                 int ibn = iym[b];
                 int jind = jpart[ibn] - 1;
                 bdown = blkind[ibn][jind][iblock];
                 idown = -1; 
-            } else {
+            } else if(jblock==0) {
                 bdown = -1;
                 idown = -iym[b];
             }
             //TOP
-            if (iyp[b]>= 0){
+            if (iyp[b]>= 0 && jblock==jpart[b]-1){
                 int ibn = iyp[b];
                 int jind = 0;
                 bup = blkind[ibn][jind][iblock]; 
                 iup = -1; 
-            } else {
+            } else if( jblock==jpart[b]-1) {
                 bup = -1;
                 iup = -iyp[b];
             }
@@ -247,8 +255,6 @@ int main(int argc, char** argv) {
         }
     }
     fclose(fgconn);
-    free(x);
-    free(y);
 
 }
 /*
