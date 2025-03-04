@@ -25,7 +25,7 @@ double array_max(size_t n, double* a){
 //test ramp geometry for now
 double ramp_surface(double x, double h, double L) {
     //test geometry: straight - ramp - straight
-    double l0 = 0.33;//1.0;
+    double l0 = 0.25;//1.0;
     if(x < l0) {
         return 0;
     } else if( x > l0+L) {
@@ -53,7 +53,7 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
     //Makes a tecplot file of the grid and a setup file for the solver
     int nb = 2*(nx-1) + 2*(ny-1);
 
-    FILE* fout = fopen("../Outputs/grid.tec", "w");
+    FILE* fout = fopen("./Outputs/grid.tec", "w");
     if (fout == nullptr) printf("Unable to open grid file.\n%s\n", strerror(errno));
 
     //printf("\nDisplaying Grid Header\n");
@@ -71,7 +71,7 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
     fclose(fout);
 
 
-    FILE* fout2 = fopen("../Outputs/mesh.dat", "w");
+    FILE* fout2 = fopen("./Outputs/mesh.dat", "w");
     if (fout2 == nullptr) printf("oeups\n");
     fprintf(fout2, "%d %d\n", nx, ny);
     for (int j=0; j<ny; j++) {
@@ -174,8 +174,8 @@ int main(int argc, char** argv) {
     int irefine, nx, ny, nyrefine{};
     double xstart = 0.0;
     length = 6.222*IN2M - xstart;//7.75*IN2M - 0.1;
-    nx = 480;
-    ny = 240;
+    nx = 121;
+    ny = 81;
     double bias = 1.0;
     double y_offset;   // Offset for axisymmetric applications
     y_offset = 0.0;//0.001;
@@ -185,11 +185,10 @@ int main(int argc, char** argv) {
      * ==================== Geometry Input ====================
      * Need to represent bottom and top surfaces of geometry
      */
-    height = 1.0;
-    double ramp_height = 0.15;//0.3;
-    double ramp_length = 0.33;//1.0;
+    height = 0.05;
+    double ramp_height =  0.75*tan(10*M_PI/180.0);//0.3;
+    double ramp_length = 0.75;//1.0;
     length = 1.0;//IN2M * (z[nx-1] - z[0]);
-
     /*
      * ==================== Mesh Generation ====================
      * ibound - flag for boundary condition (convention BL corner CCW)
@@ -228,7 +227,8 @@ int main(int argc, char** argv) {
     double factor = 2.0;
     for (int i = 0; i < nx; i++) {
         double xi = i * dx;
-        ymax = height + y_offset; //r[i];
+        double rh2 = ramp_length*tan(30.0*M_PI/180.0);
+        ymax = height + y_offset + ramp_surface(xi, rh2, ramp_length); //r[i];
         ymin = ramp_surface(xi, ramp_height, ramp_length);//y_offset;
         dy = (ymax - ymin) / (ny - 1);
 
@@ -307,7 +307,7 @@ int main(int argc, char** argv) {
         ibound[ibot] = 0;
 
         //if (ib*dx > 2.0) ibound[itop] = 3;   //top surface
-        ibound[itop] = 0;
+        ibound[itop] = 1;
     }
     //Back Pressure (2) or outflow (3)
     for (int ib = nx-1; ib<nx+ny-2; ib++){

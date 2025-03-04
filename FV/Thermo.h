@@ -44,14 +44,14 @@ private:
 
 public:
     double Ruv = 8314.34;
-    double gam = 1.28;//1.4;
+    double gam = fabs(IGAM);
     double Mw[NSP]{}, Rs[NSP]{};
     double Ttherm{};
     double CalcEnthalpy(double T);
     double CalcCp(double T);
 
     Thermo() {
-        LoadCurveFits();
+    LoadCurveFits();
 
         /*
         if (IGAM > 0){

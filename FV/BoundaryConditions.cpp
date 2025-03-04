@@ -74,7 +74,7 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
     // Treat internal boundaries as extrapolation.
     // (ideally they wouldn't be done at all but for now)
     if (btype == -1) btype = 3;
-    if (btype == 5) btype = 2;
+    if (btype == 0) btype = 4;
     //btype = 1;
 
     //Wall BC

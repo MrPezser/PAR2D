@@ -76,12 +76,14 @@ int main() {
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
     tol = 1e-6;
-    CFL = 0.01;
+    CFL = 0.3;
     Thermo air = Thermo();
 
-    p0 = 1000.0;
-    u0 = 1736.0;
-    T0 = 300.0;
+    double fac = 6894.757;
+
+    p0 = 11.79*fac; //1000.0;
+    u0 = 823.4; //1736.0;
+    T0 = 305.56;
     rho0 = p0 / (air.Rs[0]*T0);
     v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
