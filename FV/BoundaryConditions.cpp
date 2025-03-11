@@ -115,10 +115,13 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
         uBound[3] = uFS[3];
 
         if (btype==2) {         //Back pressure
-            uRight[0] = uFS[0] * 10;
-            uRight[1] = uFS[1] * 0.1;
-            uRight[2] = uFS[2] * 0.1;
-            uRight[3] = uFS[3] * 10;
+            double p2 = 4.83e6;
+            double T2 = 3100;
+
+            uRight[0] = p2 /(air.Rs[0]*T2) ;
+            uRight[1] = 0.0;
+            uRight[2] = 0.0;
+            uRight[3] = T2;
             return;
 
         } else if (btype==3){   //extrapolation / outflow

@@ -2,7 +2,9 @@
 // Created by tskoepli on 1/27/2024.
 //
 #include <iostream>
+#include <filesystem>
 #include <valarray>
+#include <sys/stat.h>
 #include "FileIO.h"
 #include "Indexing.h"
 #include "StateVariables.h"
@@ -73,11 +75,11 @@ void print_elem_stats(const char *title, int nx, int ny, const double* geoel) {
     fclose(fout);
 }
 
-void print_state(int bnum, const char *title, int nx, int ny, Thermo& air, double* x, double* y, double* unk, double* geoel ) {
+void print_state(int iter, int bnum, const char *title, int nx, int ny, Thermo& air, double* x, double* y, double* unk, double* geoel ) {
     //Makes a tecplot file of the grid and a setup file for the solver
     //int nb = 2*nx + 2*ny;
     int nelem = nx * ny;
-
+    
     char foname[50];
     sprintf(foname,"../Outputs/solution.b%d.tec",bnum+1);
     FILE* fout = fopen(foname,"w");
@@ -112,12 +114,18 @@ void print_state(int bnum, const char *title, int nx, int ny, Thermo& air, doubl
     }
     fclose(fout);
 }
-void print_state_DGP1(int bnum, const char *title, int nx, int ny, Thermo& air, double* x, double* y, double* unk, double* ux, double* uy, double* geoel ) {
+void print_state_DGP1(double t, int iter, int bnum, const char *title, int nx, int ny, Thermo& air, double* x, double* y, double* unk, double* ux, double* uy, double* geoel ) {
     //Makes a tecplot file of the grid and a setup file for the solver
     //int nb = 2*nx + 2*ny;
     int nelem = nx * ny;
-    char foname[50];
-    sprintf(foname,"../Outputs/solution.b%d.tec",bnum+1);
+    char fodir[50];
+    sprintf(fodir,"../Outputs/time/");
+    if (!(std::filesystem::exists(fodir))) {
+        std::filesystem::create_directory(fodir);
+    }
+
+    char foname[100];
+    sprintf(foname,"../Outputs/time/solution.b%03d.it%05d.tec",bnum+1,iter);
     FILE* fout = fopen(foname,"w");
 
     if (fout == nullptr) printf("oeups\n");
@@ -125,7 +133,7 @@ void print_state_DGP1(int bnum, const char *title, int nx, int ny, Thermo& air, 
     //printf("\nDisplaying Grid Header\n");
     fprintf(fout, "TITLE = \"%s\"\n", title);
     fprintf(fout, "VARIABLES = \"X\", \"Y\", \"rho\", \"u\", \"v\", \"T\", \"p\", \"c\", \"M\"\n");
-    fprintf(fout, "ZONE I=%d, J=%d, DATAPACKING=POINT\n", nx, ny);
+    fprintf(fout, "ZONE I=%d, J=%d, DATAPACKING=POINT, STRANDID=%d, SOLUTIONTIME=%lf\n",nx,ny,iter,t);
 
     //printf("Printing Coordinate Information\n");
     for (int j=0; j < ny; j++) {

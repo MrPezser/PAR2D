@@ -76,21 +76,22 @@ int main() {
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
     tol = 1e-6;
-    CFL = 0.3;
+    CFL = 0.01;
     Thermo air = Thermo();
 
     double fac = 6894.757;
 
-    p0 = 11.79*fac; //1000.0;
-    u0 = 823.4; //1736.0;
-    T0 = 305.56;
+    p0 = 101325.0; //1000.0;
+    u0 = 200.0; //1736.0;
+    T0 = 300.0;
     rho0 = p0 / (air.Rs[0]*T0);
     v0 = 0.0;
     int mxiter = NITER; //maximum number of iteration before stopping
     int printiter = 1;
-    int saveiter = 500;
-    double damp = 0.95;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
-    double duscale = 0.9;
+    int saveiter = 1000;
+    double damp = 0.9;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
+    double duscale = 0.5;
+    double time = 0.0;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
     //==================== Load Mesh ====================
@@ -212,9 +213,9 @@ int main() {
     if (bnum==0) printf("===== Generating Mesh and Initial State Tecplot Files ====\n");
     print_elem_stats("MeshVolumeStats", nx, ny, geoel);
     if (ACCUR==1){
-        print_state_DGP1(bnum,"Initial State", nx, ny, air, x, y, unk, ux, uy, geoel);
+        print_state_DGP1(time, 0, bnum,"Initial State", nx, ny, air, x, y, unk, ux, uy, geoel);
     } else {
-        print_state(bnum,"Initial State", nx, ny, air, x, y, unk, geoel);
+        print_state(0, bnum,"Initial State", nx, ny, air, x, y, unk, geoel);
     }
 
     //Find timestep based off of CFL limit for initial condition (dt = CFL dx / c )
@@ -289,6 +290,7 @@ int main() {
                     dt = buffer;
                 }
             }
+        time += dt;
 
         //calculate the right hand side residual term (change of conserved quantities)
         calc_dudt(bbounds, bids, nx, ny, air, ElemVar, uFS, ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
@@ -352,7 +354,7 @@ int main() {
 
         //Mechanism for switching between 1st and 2nd order
         //if (iter<= 1.5*(3000.0*(0.3/CFL)*(101.0/101.0))) damp = 0.0;
-        //if (iter<= 400) damp = 0.0;
+        //if (iter >= 10000) damp = 0.95;
 
 
         if (ACCUR ==1){
@@ -482,9 +484,9 @@ int main() {
         if (iter > 0 and iter % saveiter == 0) {
             //printf("Saving current Solution\n");
             if (ACCUR == 1) {
-                print_state_DGP1(bnum, "Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
+                print_state_DGP1(time, iter, bnum, "Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
             } else {
-                print_state(bnum, "Final State", nx, ny, air, x, y, unk, geoel);
+                print_state(iter, bnum, "Final State", nx, ny, air, x, y, unk, geoel);
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -537,9 +539,9 @@ int main() {
     printf("::%3d:: Saving Solution File..... \n",bnum);
 
     if (ACCUR==1){
-        print_state_DGP1(bnum,"Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
+        print_state_DGP1(time,iter,bnum,"Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
     } else {
-        print_state(bnum,"Final State", nx, ny, air, x, y, unk, geoel);
+        print_state(iter,bnum,"Final State", nx, ny, air, x, y, unk, geoel);
     }
     //print_state_axi("Final State", nx, ny, air, x, y, unk, geoel);
 

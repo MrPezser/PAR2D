@@ -330,8 +330,8 @@ void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* 
     //varEx.UpdateState(air);
 
     ///////////////////////////////////////////////////////
-    fNormalL = fNormal;
-    fNormalR = fNormal;
+    //fNormalL = fNormal;
+    //fNormalR = fNormal;
     ///////////////////////////////////////////////////////
 
     //Cell centers used for adding in pressure term
