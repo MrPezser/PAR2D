@@ -26,7 +26,7 @@ private:
 
 public:
     double p{NAN},a{NAN}, h{NAN}, h0{NAN}, e0{NAN}, v2{NAN}, Cp[NSP]{}, Cv{}, mu{};
-    double e{NAN};
+    double e{NAN}, rho{NAN};
 
     State() = default;
 
@@ -39,9 +39,14 @@ public:
         int isp = 0;
         unk[3] = fmax(unk[3], 201.0);
         double T = unk[3];
+        
+        rho = 0.0;
+        for (int isp=0; isp<NSP; isp++){
+            rho += unk[isp];
+        }
 
         v2 = unk[1]*unk[1] + unk[2]*unk[2];
-        p = unk[0]*air.Rs[isp]*T;
+        p = rho*air.Rs[isp]*T;
         p = fmax(p, 1.0);
         a = sqrt(air.gam*air.Rs[isp]*T);
         h =air.CalcEnthalpy(T);

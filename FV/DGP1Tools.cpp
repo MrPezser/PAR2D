@@ -783,3 +783,58 @@ void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* 
 }
 
 
+void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* uxL, double* uyL, double* uxR, double* uyR,
+                            const double* yCenter, Thermo air, double rFace, double* fNormal, double len, double dc
+                            double* vflx){
+    // Code for computing the viscous interface flux according to the direct discontinuous galerkin method (Liu&Yan) 
+
+    double mu = 0.5 * (varL.mu + varR.mu);
+
+    dci = 1.0 / sqrt(dc[0] * dc[0] + dc[1] * dc[1]);
+
+    //  ========== Convert primative variables at point to conserved vars
+    double cvl[NVAR], cvr[NVAR];
+   
+   // Species density fractions remain 
+    for (int isp=0; isp<NSP; isp++) {
+       cvl[isp] = uL[isp];
+       cvr[isp] = ur[isp];
+    }
+    //
+    // velocities ==>> momentums
+    cvl[NSP] = uL[NSP] * VarL.rho; 
+    cvr[NSP] = ur[NSP] * VarR.rho; 
+    cvl[NSP+1] = uL[NSP+1] * VarL.rho; 
+    cvr[NSP+1] = ur[NSP+1] * VarR.rho; 
+    //
+    // temp ==>> energy
+    cvl[NSP+2] = varL.e;
+    cvr[NSP+2] = varR.e;
+    //
+    //
+    //  ========== Compute the interface 1st derivatives DDG(CV)
+    // dcv_dx_int = B0*(jump(u))/delta + (average dx) + B1*delta*(jump(ddudxdx))
+    double cvi[NVAR];
+    
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
