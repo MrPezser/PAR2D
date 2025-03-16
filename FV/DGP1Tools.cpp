@@ -814,7 +814,31 @@ void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* ux
     //
     //  ========== Compute the interface 1st derivatives DDG(CV)
     // dcv_dx_int = B0*(jump(u))/delta + (average dx) + B1*delta*(jump(ddudxdx))
-    double cvi[NVAR];
+    double dcvi[NVAR], dcvdpvL[NVAR][NVAR], dcvdpvR[NVAR][NVAR];
+    double dcvdxL[NVAR], dcvdy[NVAR];
+    double beta0 = 4;
+    //
+    BuildJacobian(1.0, uL, dudvL);
+    BuildJacobian(1.0, uR, dudvR);
+    //
+    for (int mi=0; mi<NVAR; mi++){
+    dcvdxL[mi] = 0.0;
+    dcvdxR[mi] = 0.0;
+    for (int mj=0; mj<NVAR; mj++){
+        dcvdxL[mi] += dcvdpvL[mi][mj]*uL[mj]
+        dcvdxR[mi] += dcvdpvR[mi][mj]*uR[mj]
+    }
+    }
+    for (int m=0, m<NVAR, m++){
+        double ujump, dubar;
+        //
+        ujump = cvr[m] - cvl[m];
+        dubar = 0.5 * (dcvdxL[m] + dcvdxR[m]); 
+        //
+        dcvi[m] = beta0*ujump*dci + dubar;
+    }
+    //
+    //  ========== Use Int Cons Derivs to find Int Prim Derivs
     
 
 }
