@@ -783,65 +783,98 @@ void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* 
 }
 
 
-void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* uxL, double* uyL, double* uxR, double* uyR,
-                            const double* yCenter, Thermo air, double rFace, double* fNormal, double len, double dc
-                            double* vflx){
-    // Code for computing the viscous interface flux according to the direct discontinuous galerkin method (Liu&Yan) 
-
-    double mu = 0.5 * (varL.mu + varR.mu);
+void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* uxL, double* uyL,
+                      double* uxR, double* uyR, const double* yCenter, Thermo air, double rFace,
+                      double* fNormal, double len, double dc, double* vflx){
+    // Code for computing the viscous interface flux according to the 
+    // direct discontinuous galerkin method (Liu&Yan) 
+    // NOTE: Some commented code for using conserved vars,
+    // but currently just using prims because we already have them
+    //
+    double ujump[NVAR], dubar[NVAR];
+    double dpvi[NVAR];
+    //
+    double rhoave = 0.5*(VarL.rho + VarR.rho);
 
     dci = 1.0 / sqrt(dc[0] * dc[0] + dc[1] * dc[1]);
 
     //  ========== Convert primative variables at point to conserved vars
-    double cvl[NVAR], cvr[NVAR];
+//    double cvl[NVAR], cvr[NVAR];
    
    // Species density fractions remain 
-    for (int isp=0; isp<NSP; isp++) {
-       cvl[isp] = uL[isp];
-       cvr[isp] = ur[isp];
+//    for (int isp=0; isp<NSP; isp++) {
+//       cvl[isp] = uL[isp];
+//       cvr[isp] = ur[isp];
     }
     //
     // velocities ==>> momentums
-    cvl[NSP] = uL[NSP] * VarL.rho; 
-    cvr[NSP] = ur[NSP] * VarR.rho; 
-    cvl[NSP+1] = uL[NSP+1] * VarL.rho; 
-    cvr[NSP+1] = ur[NSP+1] * VarR.rho; 
+//    cvl[NSP] = uL[NSP] * VarL.rho; 
+//    cvr[NSP] = ur[NSP] * VarR.rho; 
+//    cvl[NSP+1] = uL[NSP+1] * VarL.rho; 
+//    cvr[NSP+1] = ur[NSP+1] * VarR.rho; 
     //
     // temp ==>> energy
-    cvl[NSP+2] = varL.e;
-    cvr[NSP+2] = varR.e;
+//    cvl[NSP+2] = varL.e;
+//    cvr[NSP+2] = varR.e;
     //
     //
     //  ========== Compute the interface 1st derivatives DDG(CV)
     // dcv_dx_int = B0*(jump(u))/delta + (average dx) + B1*delta*(jump(ddudxdx))
-    double dcvi[NVAR], dcvdpvL[NVAR][NVAR], dcvdpvR[NVAR][NVAR];
-    double dcvdxL[NVAR], dcvdy[NVAR];
-    double beta0 = 4;
+//    double dcvi[NVAR], dcvdpvL[NVAR][NVAR], dcvdpvR[NVAR][NVAR];
+//    double dcvdxL[NVAR], dcvdy[NVAR];
+//    double beta0 = 4;
     //
-    BuildJacobian(1.0, uL, dudvL);
-    BuildJacobian(1.0, uR, dudvR);
+//    BuildJacobian(1.0, uL, dudvL);
+//    BuildJacobian(1.0, uR, dudvR);
     //
-    for (int mi=0; mi<NVAR; mi++){
-    dcvdxL[mi] = 0.0;
-    dcvdxR[mi] = 0.0;
-    for (int mj=0; mj<NVAR; mj++){
-        dcvdxL[mi] += dcvdpvL[mi][mj]*uL[mj]
-        dcvdxR[mi] += dcvdpvR[mi][mj]*uR[mj]
-    }
-    }
-    for (int m=0, m<NVAR, m++){
-        double ujump, dubar;
+//    for (int mi=0; mi<NVAR; mi++){
+//    dcvdxL[mi] = 0.0;
+//    dcvdxR[mi] = 0.0;
+//    for (int mj=0; mj<NVAR; mj++){
+//        dcvdxL[mi] += dcvdpvL[mi][mj]*uL[mj]
+//        dcvdxR[mi] += dcvdpvR[mi][mj]*uR[mj]
+//    }
+//    }
+    for (int m=0; m<NVAR; m++){
         //
-        ujump = cvr[m] - cvl[m];
-        dubar = 0.5 * (dcvdxL[m] + dcvdxR[m]); 
+        ujump[m] = uL[m] - uR[m];
+        dubar[m] = 0.5 * (uxL[m] + uxR[m]); 
         //
-        dcvi[m] = beta0*ujump*dci + dubar;
+        dpvi[m] = beta0*ujump[m]*dci + dubar[m];
     }
     //
     //  ========== Use Int Cons Derivs to find Int Prim Derivs
-    
-
+//    double dpvi[NVAR];
+//    for (int m=0; m<NSP; m++) {
+//        dpvi[m] = dcv[i]; //density
+//    }
+    // velocities
+//    dpvi[NSP]   = (dcvi[NSP]   - dubar[NSP]  ) / rhoave; 
+//    dpvi[NSP+1] = (dcvi[NSP+1] - dubar[NSP+1]) / rhoave; 
+    // temperature
+//    dpvi[NSP+2] = (dcvi[NSP+2] - ) / rhoave;
+    //
+    //
+    //  ========== Calculate Viscous Flux at that point
+    //
+    double mu = 0.5 * (VarL.mu + VarR.mu);
+    //  momentum_i
+    // (rho*ui):  dui/dxk + duk/dxi - 2/3 * dirac_ik * dul/dxl
+    //     1: this du for all dx_k
+    //     2: all du_k for this dx
+    //     3: subtract trace using divergence
+    // Continuity
+    vflx[0] = 0.0;
+    // Momentum
+    vflx[1] = 
+     
 }
+
+
+
+
+
+
 
 
 
