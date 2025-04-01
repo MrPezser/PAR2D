@@ -782,7 +782,7 @@ void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* 
     }
 }
 
-
+/*
 void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* uxL, double* uyL,
                       double* uxR, double* uyR, const double* yCenter, Thermo air, double rFace,
                       double* fNormal, double len, double dc, double* vflx){
@@ -869,7 +869,7 @@ void DGP1_DDG_viscous(double* uL, double* uR, State VarR, State VarL, double* ux
     vflx[1] = 
      
 }
-
+*/
 
 
 

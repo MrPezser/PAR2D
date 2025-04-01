@@ -61,9 +61,15 @@ int main(int argc, char** argv) {
             y[b][j] = (double*)malloc(ni[b]*sizeof(double));
         }
         // read block in
-        for (int i=0; i<ni[b]; i++){
+//        for (int i=0; i<ni[b]; i++){
+//        for (int j=0; j<nj[b]; j++){
+//            fscanf(fgrid, "%le %le %*e", &x[b][j][i], &y[b][j][i]);     ///// %*e
+//        }
+//        }
+        // read block in JRE
         for (int j=0; j<nj[b]; j++){
-            fscanf(fgrid, "%le %le %*e", &x[b][j][i], &y[b][j][i]);
+        for (int i=0; i<ni[b]; i++){
+            fscanf(fgrid, "%lE %lE ", &x[b][j][i], &y[b][j][i]);
         }
         }
     }
@@ -94,6 +100,13 @@ int main(int argc, char** argv) {
     fgconn = fopen("./grid.conn","w");
     fprintf(fgconn,"%d\n",nbtot);
     //
+    int istepmanual[5];
+    istepmanual[0] = 0;
+    istepmanual[1] = 99;
+    istepmanual[2] = 79 + 99;
+    istepmanual[3] = 79 + 99 + 79;
+    istepmanual[4] = 99 + 99 + 79 + 79;
+    //
     for (int b=0; b<nblock; b++){
         printf("\n========== PARTITIONING GRID %d ==========\n",b);
         //Check for partition or grid errors in the input grid
@@ -115,7 +128,9 @@ int main(int argc, char** argv) {
         }
         //Decompose current block
         int istep, jstep;
-        istep = ceil((double)ni[b]/ipart[b] - 1e-8);
+        printf("Overwriting automatic decomposition.\n");
+        //istep = ceil((double)ni[b]/ipart[b] - 1e-8);
+        istep = -999;
         jstep = ceil((double)nj[b]/jpart[b] - 1e-8);
         printf("B(%d) istep, jstep : %d, %d\n", b, istep, jstep);    
         
@@ -124,9 +139,9 @@ int main(int argc, char** argv) {
         for (int iblock=0; iblock<ipart[b]; iblock++) {
             printf("\n========== WRITING SUBGRID %d:(%2d, %2d) \n",b,iblock,jblock);
             // Get boundary of partition
-            int istart = istep*iblock;
+            int istart = istepmanual[iblock];//istep*iblock;
             int jstart = jstep*jblock;
-            int iend = MIN(ni[b]-1, istep*(iblock+1));
+            int iend = istepmanual[iblock+1];//MIN(ni[b]-1, istep*(iblock+1));
             int jend = MIN(nj[b]-1, jstep*(jblock+1));
             //Add on padding
             //istart = MAX(istart-1, 0); 
