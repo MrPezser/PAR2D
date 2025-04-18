@@ -10,7 +10,7 @@
 #include <errno.h>
 #include <string.h>
 
-#define IN2M (0.0254)
+#define IN2M (1.0) //(0.0254)
 
 #define IU(i, j, ni)  (((j)*(ni)) + (i))
 
@@ -53,7 +53,7 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
     //Makes a tecplot file of the grid and a setup file for the solver
     int nb = 2*(nx-1) + 2*(ny-1);
 
-    FILE* fout = fopen("./Outputs/grid.tec", "w");
+    FILE* fout = fopen("../Outputs/grid.tec", "w");
     if (fout == nullptr) printf("Unable to open grid file.\n%s\n", strerror(errno));
 
     //printf("\nDisplaying Grid Header\n");
@@ -71,8 +71,8 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
     fclose(fout);
 
 
-    FILE* fout2 = fopen("./Outputs/mesh.dat", "w");
-    if (fout2 == nullptr) printf("oeups\n");
+    FILE* fout2 = fopen("../Outputs/mesh.dat", "w");
+    if (fout2 == nullptr) printf("oeups mesh\n");
     fprintf(fout2, "%d %d\n", nx, ny);
     for (int j=0; j<ny; j++) {
         for (int i=0; i<nx; i++) {
@@ -92,8 +92,8 @@ void printgrid(const char *title, int nx, int ny, double *x, double *y, int* ibo
 void get_nozzle(const int nx, double* x, double* y){
     // Uses a given nozzle contour to find the maximum y values fr the given set of x points
 
-    FILE* fcont = fopen("../axicontour_trim_smooth.dat","r");
-    if (fcont == nullptr) printf("Couldn't open nozzle contour file\n");
+    FILE* fcont = fopen("../pccont.dat","r");
+    if (fcont == nullptr) {printf("Couldn't open nozzle contour file\n"); exit(0); }
     int ncon;
     fscanf(fcont, " %d",&ncon);
 
@@ -141,23 +141,6 @@ void get_nozzle(const int nx, double* x, double* y){
             y[ipoin] /= y[0];
         }
 
-        /*
-         * //Use lagrange polynomial to interpolate, be wary of spurious oscilations
-         *
-        for (int j=0; j<ncon; j++){
-            double l = 1.0;
-
-            for (int m=0; m<ncon; m++){
-                if (j==m) continue;
-
-                l *= (x[ipoin] - z[m]) / (z[j] - z[m]);
-
-            }
-
-            y[ipoin] += r[j] * l;
-        }
-         */
-
     }
     for (int ipoin=0; ipoin<nx; ipoin++) {
         x[ipoin] /= y[0];
@@ -173,9 +156,8 @@ int main(int argc, char** argv) {
     double height, length;
     int irefine, nx, ny, nyrefine{};
     double xstart = 0.0;
-    length = 6.222*IN2M - xstart;//7.75*IN2M - 0.1;
-    nx = 121;
-    ny = 81;
+    nx = 300;
+    ny = 50;
     double bias = 1.0;
     double y_offset;   // Offset for axisymmetric applications
     y_offset = 0.0;//0.001;
@@ -185,10 +167,10 @@ int main(int argc, char** argv) {
      * ==================== Geometry Input ====================
      * Need to represent bottom and top surfaces of geometry
      */
-    height = 0.05;
-    double ramp_height =  0.75*tan(10*M_PI/180.0);//0.3;
-    double ramp_length = 0.75;//1.0;
-    length = 1.0;//IN2M * (z[nx-1] - z[0]);
+    height = 1.0;
+    //double ramp_height =  0.75*tan(10*M_PI/180.0);//0.3;
+    //double ramp_length = 0.75;//1.0;
+    length = 3.0;//IN2M * (z[nx-1] - z[0]);
     /*
      * ==================== Mesh Generation ====================
      * ibound - flag for boundary condition (convention BL corner CCW)
@@ -205,8 +187,8 @@ int main(int argc, char** argv) {
 
     //Read in nozzle geometry
     dx = length / (nx-1);
-    //for (int i=0; i<nx; i++) z[i] = (xstart + (i*dx))/IN2M;
-    //get_nozzle(nx, z, r);
+    for (int i=0; i<nx; i++) z[i] = (xstart + (i*dx))/IN2M;
+    get_nozzle(nx, z, r);
     y_offset = 0.0 ;//0.05 * array_max(nx, r);
 
     /*
@@ -227,9 +209,9 @@ int main(int argc, char** argv) {
     double factor = 2.0;
     for (int i = 0; i < nx; i++) {
         double xi = i * dx;
-        double rh2 = ramp_length*tan(30.0*M_PI/180.0);
-        ymax = height + y_offset + ramp_surface(xi, rh2, ramp_length); //r[i];
-        ymin = ramp_surface(xi, ramp_height, ramp_length);//y_offset;
+        //double rh2 = ramp_length*tan(30.0*M_PI/180.0);
+        ymax = r[i];//  height + y_offset + ramp_surface(xi, rh2, ramp_length);
+        ymin = 0.0;// ramp_surface(xi, ramp_height, ramp_length);
         dy = (ymax - ymin) / (ny - 1);
 
         if (irefine==1) {
@@ -304,10 +286,10 @@ int main(int argc, char** argv) {
         int ibot = ib;
 
         //if (ib*dx > 0.2) ibound[ibot] = 4;       //bot surf
-        ibound[ibot] = 0;
+        ibound[ibot] = 4;
 
         //if (ib*dx > 2.0) ibound[itop] = 3;   //top surface
-        ibound[itop] = 1;
+        ibound[itop] = 4;
     }
     //Back Pressure (2) or outflow (3)
     for (int ib = nx-1; ib<nx+ny-2; ib++){
