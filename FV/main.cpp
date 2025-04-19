@@ -76,13 +76,13 @@ int main() {
     //Read in setup file
     double p0, u0, tol, CFL, T0, v0, rho0;
     tol = 1e-6;
-    CFL = 0.01;
+    CFL = 0.01;//0.01;
     Thermo air = Thermo();
 
     double fac = 6894.757;
 
-    p0 = 101325.0; //1000.0;
-    u0 = 200.0; //1736.0;
+    p0 = 1000.0 ;//5.0*101325.0; //1000.0;
+    u0 = 1736.0 ;//10.0; //1736.0;
     T0 = 300.0;
     rho0 = p0 / (air.Rs[0]*T0);
     v0 = 0.0;
@@ -178,21 +178,21 @@ int main() {
     //initialize solution on mesh (zero aoa)
     double uFS[4], uBP[4];
     uFS[0] = rho0;
-    uFS[1] = u0;
+    uFS[1] = u0; //0.0
     uFS[2] = v0;
     uFS[3] = T0;
     
-    uBP[0] = rho0 * sqrt(10);
+    uBP[0] = rho0;
     uBP[1] = u0;
     uBP[2] = v0;
-    uBP[3] = T0 * sqrt(10);
+    uBP[3] = T0;
 
     //Plenum State
     ///back pressure here
 
     for (int ielem=0; ielem<nelem; ielem++){
-        unk[NVAR*ielem]   = uFS[0];
-        unk[NVAR*ielem+1] = uFS[1];
+        unk[NVAR*ielem]   = uFS[0]; // *0.2
+        unk[NVAR*ielem+1] = uFS[1]; // 600.0
         unk[NVAR*ielem+2] = uFS[2];
         unk[NVAR*ielem+3] = uFS[3];
 

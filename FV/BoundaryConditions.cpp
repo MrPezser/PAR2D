@@ -75,6 +75,8 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
     // (ideally they wouldn't be done at all but for now)
     if (btype == -1) btype = 3;
     if (btype == 0) btype = 4;
+    //if (btype == 2) btype = 3;
+    //if (btype == 1) btype = 5;
     //btype = 1;
 
     //Wall BC
@@ -115,14 +117,14 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
         uBound[3] = uFS[3];
 
         if (btype==2) {         //Back pressure
-            double p2 = 4.83e6;
-            double T2 = 3100;
+            double p2 = 101325.0;
+            double T2 = uLeft[3];
 
-            uRight[0] = p2 /(air.Rs[0]*T2) ;
-            uRight[1] = 0.0;
-            uRight[2] = 0.0;
-            uRight[3] = T2;
-            return;
+            uRight[0] = p2 /(air.Rs[0]*T2);
+            uRight[1] = fmax(0.0,uLeft[1]);
+            uRight[2] = uLeft[2];
+            uRight[3] = uLeft[3];
+           return;
 
         } else if (btype==3){   //extrapolation / outflow
             uRight[0] = uLeft[0];
@@ -135,9 +137,9 @@ void boundary_state(int btype, Thermo& air,double normx, double normy, const dou
             double pBern, pFS;
             pFS = uFS[0]*air.Rs[0]*uFS[3];
             pBern = pFS - 0.5*uLeft[0]*varL.v2;
-
+            if (uLeft[1] <= 0.0) pBern = pFS;
             uRight[0] = pBern / (air.Rs[0]*uFS[3]);
-            uRight[1] = uLeft[1];
+            uRight[1] = fmax(uLeft[1],0.0);
             uRight[2] = uLeft[2];
             uRight[3] = uLeft[3];
             return;
