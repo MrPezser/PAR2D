@@ -73,24 +73,66 @@ int main() {
     int bnum;
     MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
 
-    //Read in setup file
-    double p0, u0, tol, CFL, T0, v0, rho0;
-    tol = 1e-6;
-    CFL = 0.01;//0.01;
+    //==================  Read input file  =======================
+    double p0, u0, tol, CFL, T0, v0, rho0, gam, damp, duscale;
+    int accur, iaxi, ivisc, niter, printiter, saveiter;
+    // I know this is awful, fight me about it
+    std::string line;
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+        p0 = stod(line);    
+    std::getline(std::cin, line);
+        u0 = stod(line);    
+    std::getline(std::cin, line);
+        v0 = stod(line);    
+    std::getline(std::cin, line);
+        T0 = stod(line);    
+        rho0 = p0 / (air.Rs[0]*T0);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+        gam   = stod(line);
+    std::getline(std::cin, line);
+        accur = stoi(line);
+    std::getline(std::cin, line);
+        iaxi  = stoi(line);
+    std::getline(std::cin, line);
+        ivisc = stod(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+        niter     = stoi(line);
+    std::getline(std::cin, line);
+        cfl       = stod(line);
+    std::getline(std::cin, line);
+        tol       = stod(line);
+    std::getline(std::cin, line);
+        printiter = stoi(line);
+    std::getline(std::cin, line);
+        saveiter  = stoi(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+        damp    = stod(line);
+
+        duscale = stod(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+        mxangle = stod(line);
+/////////////////////////////////
+
     Thermo air = Thermo();
-
-    double fac = 6894.757;
-
-    p0 = 1000.0 ;//5.0*101325.0; //1000.0;
-    u0 = 1736.0 ;//10.0; //1736.0;
-    T0 = 300.0;
-    rho0 = p0 / (air.Rs[0]*T0);
-    v0 = 0.0;
-    int mxiter = NITER; //maximum number of iteration before stopping
-    int printiter = 1;
-    int saveiter = 1000;
-    double damp = 0.9;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
-    double duscale = 0.5;
+    int mxiter = niter; //maximum number of iteration before stopping
     double time = 0.0;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
@@ -293,7 +335,8 @@ int main() {
         time += dt;
 
         //calculate the right hand side residual term (change of conserved quantities)
-        calc_dudt(bbounds, bids, nx, ny, air, ElemVar, uFS, ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
+        calc_dudt(ivisc, accur, iaxi, mxangle, bbounds, bids, nx, ny, air, ElemVar, uFS,
+                  ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
         calculate_residual(nx, ny, res, ressum);
         //printf("::%3d::Calculated dudt..... \n", bnum);
 

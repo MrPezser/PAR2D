@@ -1,0 +1,30 @@
+p0 u0 v0 T0
+===========
+1000.0
+0.0
+1736.0
+300.0
+
+Physics: GAM ACCUR IAXI IVISC
+====================
+1.4
+0
+1
+0
+
+Iteration: NITER CFL TOL PRINTITER SAVEITER
+===========================================
+1000000
+0.1
+0.000001
+1
+1000
+
+Knobs: DAMP DUSCALE
+===================
+0.9
+0.5
+
+Misc: MXANGLE
+=======
+0.0

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Executable Location
+EXEC = "/home/tsk/Documents/Github/PAR2D/FV/cmake-arch/MPI2DFV"
+
+# Case Parameters
+N = 8
+
+mpirun -n $(N) EXEC < test.in > output
