@@ -16,7 +16,7 @@ private:
     void LoadCurveFits(){
         int isp = 0;
         //Function for reading in the therm.dat file and loading in thermo curve fits for 5 species air
-        FILE* ftherm = fopen("../therm_air.dat","r");
+        FILE* ftherm = fopen("thermo.dat","r");
         ASSERT(ftherm != nullptr, "Unable to open thermo file");
 
         //get molecular weight from first line
@@ -50,7 +50,7 @@ public:
     double CalcEnthalpy(double T);
     double CalcCp(double T);
 
-    Thermo(double gamma) {
+    Thermo(double gamma = 1.4) {
         LoadCurveFits();
         gam = gamma;
     }

@@ -118,7 +118,7 @@ void LeerFlux(const double gam, double normx, double normy, double* uLeft, State
 }
 
 
-void LDFSS(double normx, double normy, double len, double yface, double* uLeft, State varL, double* uRight, State varR,
+void LDFSS(int iaxi,double normx, double normy, double len, double yface, double* uLeft, State varL, double* uRight, State varR,
            double* flux, double* parr) {
 
 //--------------------------------------------------------------------
@@ -176,7 +176,7 @@ void LDFSS(double normx, double normy, double len, double yface, double* uLeft, 
 
 
     double parr_noaxi;
-    if (IAXI){
+    if (iaxi){
         parr[0] = len * pnet * normy;
         parr_noaxi = 0.0;
     }else {

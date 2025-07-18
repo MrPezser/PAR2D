@@ -258,7 +258,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (accur=0) {
+            if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
                     uGLeft[j] = urecv[j];
                 }
@@ -289,7 +289,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // ~~~~~~~~~~~~~~~~~~ Right Boundary
             iblk2 = bids[1];
             int ntrans = NVAR*(ny-1);
-            ntrans *= (accur1);
+            ntrans *= (accur);
             //printf("right comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
@@ -319,7 +319,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (accur=0) {
+            if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
                     uGRight[j] = urecv[j];
                 }
@@ -349,7 +349,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // ~~~~~~~~~~~~~~~~~~~~ Bottom Boundary
             iblk2 = bids[0];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (accur1);
+            ntrans *= (accur);
             //printf("bot   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
@@ -410,7 +410,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // Top Boundary
             iblk2 = bids[2];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (accur1);
+            ntrans *= (accur);
             //printf("top   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
@@ -440,7 +440,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (accur=0) {
+            if (accur==0) {
                 for (int i = 0; i < ntrans; i++) {
                     uGTop[i] = urecv[i];
                 }
@@ -503,8 +503,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
 
 
-            if (accur=1) {
-                DGP1_xsi_face_integral(ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
+            if (accur==1) {
+                DGP1_xsi_face_integral(iaxi,ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
                                        rFace, fNormal, len, rhsel, rhselx, rhsely);
             } else {
                 uLeft = &unk[iuL];
@@ -512,7 +512,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                 varL = ElemVar[ieL];
                 varR = ElemVar[ieR];
 
-                LDFSS(fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+                LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
                 //Add flux contribution to elements
                 for (int kvar=0; kvar<NVAR; kvar++) {
@@ -577,8 +577,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
 
 
-            if (accur=1) {
-                DGP1_eta_face_integral(ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
+            if (accur==1) {
+                DGP1_eta_face_integral(iaxi,ieL,ieR,iuL,iuR,unk,ElemVar,ux,uy,yCenter,air,
                                        rFace, fNormal, len, rhsel, rhselx, rhsely);
             } else {
                 uLeft = &unk[iuL];
@@ -586,7 +586,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                 varL = ElemVar[ieL];
                 varR = ElemVar[ieR];
 
-                LDFSS(fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+                LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
                 //Add flux contribution to elements
                 for (int kvar=0; kvar<NVAR; kvar++) {
@@ -678,8 +678,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             fNormalR[1] = geofa[IJK(0, j + 1, 5, nx, 6)];
         }
 
-        if (accur=1) {
-            DGP1_boundary_face_integral(ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGLeft, LeftVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGLeft, LeftVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &uGLeft[iuL];
@@ -687,7 +687,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             varL = LeftVar[ieL];
             varR = ElemVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -755,7 +755,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
         }
 
         if (accur== 1) {
-            DGP1_boundary_face_integral(ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGRight, RightVar,
+            DGP1_boundary_face_integral(iaxi,ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGRight, RightVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &unk[iuL];
@@ -763,7 +763,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             varL = ElemVar[ieL];
             varR = RightVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -832,8 +832,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             yCenter = 0.0;
         }
 
-        if (accur=1) {
-            DGP1_boundary_face_integral(ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGBot, BotVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGBot, BotVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
             //printf("(i,j,) rhx,x,y: (%2d,%2d) %f,%f,%f\n\n",
             //       i,0,rhsel[iuL],rhselx[iuL],rhsely[iuL]);
@@ -844,7 +844,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             varL = ElemVar[ieL];
             varR = BotVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -913,8 +913,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             yCenter = 0.0;
         }
 
-        if (accur=1) {
-            DGP1_boundary_face_integral(ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGTop, TopVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGTop, TopVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &uGTop[iuL];
@@ -922,7 +922,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             varL = TopVar[ieL];
             varR = ElemVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -945,7 +945,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
         //Find interface flux
         //ASSERT(varR.a*varL.a > 0.0, "nonpositive wave speed")
-        LDFSS(normx, normy, len, yface, &(uGTop[iuL]), TopVar[i], uRight, varR, fflux, &parr);
+        LDFSS(iaxi,normx, normy, len, yface, &(uGTop[iuL]), TopVar[i], uRight, varR, fflux, &parr);
 
 
         //Add flux contribution to elements
@@ -987,7 +987,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             //printf("(i,j,) rhx,x,y: (%2d,%2d) %f,%f,%f\n",
             //       i,j,rhsel[iu],rhselx[iu],rhsely[iu]);
 
-            if (accur=1) {
+            if (accur==1) {
                 duxdt[iu]     = 3.0 * rhselx[iu]     / vol;
                 duxdt[iu + 1] = 3.0 * rhselx[iu + 1] / vol;
                 duxdt[iu + 2] = 3.0 * rhselx[iu + 2] / vol;
@@ -1007,9 +1007,9 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
         }
     }
-    if (accur=1) {
+    if (accur==1) {
         // SINCE M IS DIAGONAL MATRIX, THE BELOW ALREADY INCLUDES THE MULTIPLE 3/VOL FROM ITS INVERSION
-        DGP1_volume_integral(nx, ny, 1.0, xfa, yfa, geoel, unk, ElemVar, duxdt, duydt);
+        DGP1_volume_integral(nx, ny, iaxi, 1.0, xfa, yfa, geoel, unk, ElemVar, duxdt, duydt);
     }
 
     for (int i=0; i<nx-1; i++) {
@@ -1031,7 +1031,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
      */
 
     free(rhsel);
-    if (accur=1) {
+    if (accur==1) {
         free(rhselx);
         free(rhsely);
     }
