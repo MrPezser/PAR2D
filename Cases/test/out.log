@@ -1,0 +1,24 @@
+P0 1000.0
+u0 0.0
+v0 1736.0
+T0 300.0
+gam 1.4
+accur 0
+iaxi 1
+ivisc 0
+niter 1000000
+cfl 0.1
+tol 0.000001
+printiter 1
+saveiter 1000
+damp 0.9
+duscale 0.5
+mxangle (not imp)0.0
+==================== Loading Mesh ====================
+Reading Mesh File..... 
+::  0:: Scanning Headers
+::  0:: (nx,ny)=(101, 71), Now Scanning Nodes....
+::  0:: Scanning BCs
+Reading Block Connectivity File..... 
+::  0:: opened conn file 
+::  0::Calculating Grid Metrics..... 

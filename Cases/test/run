@@ -1,9 +1,3 @@
 #!/bin/sh
-
-# Executable Location
-set EXEC = "/home/tsk/Documents/GitHub/PAR2D/FV/cmake-arch/MPI2DFV"
-
-# Case Parameters
-set N = 1
-
-mpiexec -n ${N} ${EXEC} test.in >> out.log
+mkdir ./Outputs
+mpirun -n 8 /home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV < test.in |& tee out.log
