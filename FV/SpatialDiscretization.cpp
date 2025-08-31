@@ -160,6 +160,15 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
     double *rhsel, *rhselx = nullptr, *rhsely = nullptr, parr;
     rhsel  = (double*)malloc(NVAR*nelem*sizeof(double));
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    int bnum;
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    int blockflag[4] = {0,0,0,0};
+
+    if(DEBUG) {printf("::%3d:: Calculating DUDT, accur=%d..... \n", bnum, accur);fflush(stdout);}
+    
     if (accur==1) {
         rhselx = (double *) malloc(NVAR * nelem * sizeof(double));
         rhsely = (double *) malloc(NVAR * nelem * sizeof(double));
@@ -204,12 +213,6 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
     }
 
     //Get interior boundary information from other processes
-    MPI_Barrier(MPI_COMM_WORLD);
-    int bnum;
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
-    int blockflag[4] = {0,0,0,0};
 
 
     for (int iblk=0; iblk<world_size; iblk++) {
@@ -227,7 +230,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             iblk2 = bids[3];
             int ntrans = NVAR * (ny - 1);
             ntrans *= (accur+ 1);
-            // printf("left  comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            if(DEBUG) {printf("left  comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double *) malloc(ntrans * sizeof(double));
             urecv = (double *) malloc(ntrans * sizeof(double));
 
@@ -275,6 +278,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
                     for (int k=0; k<NVAR; k++) {
                         uGLeft[iuEx1+k] = urecv[IJ(k, j, 2*NVAR)];
                         uGLeft[iuEx2+k] = urecv[IJ(k+NVAR, j, 2*NVAR)];
+			ASSERT(!__isnan(uGLeft[iuEx2+k]),"damnit 2")
+			ASSERT(!__isnan(uGLeft[iuEx1+k]),"damnit 1")
                     }
                     LeftVar[ieEx1].UpdateState(air);
                     LeftVar[ieEx2].UpdateState(air);
@@ -289,8 +294,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // ~~~~~~~~~~~~~~~~~~ Right Boundary
             iblk2 = bids[1];
             int ntrans = NVAR*(ny-1);
-            ntrans *= (accur);
-            //printf("right comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur+1);
+            if(DEBUG) {printf("right comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
@@ -349,8 +354,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // ~~~~~~~~~~~~~~~~~~~~ Bottom Boundary
             iblk2 = bids[0];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (accur);
-            //printf("bot   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur + 1);
+            if(DEBUG) {printf("bot   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
@@ -410,8 +415,8 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             // Top Boundary
             iblk2 = bids[2];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (accur);
-            //printf("top   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur+1);
+            if(DEBUG) {printf("top   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
@@ -467,7 +472,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             free(urecv);
         }
     }// iblk loop
-    //printf("::%3d::Communicated IntBoundry Ghost Cells..... \n", bnum);
+    if(DEBUG) {printf("::%3d::Communicated IntBoundry Ghost Cells..... \n", bnum);fflush(stdout);}
 
 
     //====================Evaluate Flux Contributions====================

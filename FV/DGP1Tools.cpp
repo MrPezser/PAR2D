@@ -24,6 +24,8 @@ void get_u_val(const double* unk, State var, Thermo air,const double* ux, const 
 
             uout[k] = pout / (air.Rs[0]*(unk[3] + (xsi * ux[3]) + (eta * uy[3])));
 
+    } else {
+        uout[k] = unk[k] + (xsi * ux[k]) + (eta * uy[k]);
     }
     }
 }
@@ -314,7 +316,7 @@ void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx
     varIn.Initialize(uInFace);
     //varEx.Initialize(uExFace);
     //varEx.UpdateState(air);
-
+	
     ///////////////////////////////////////////////////////
     //fNormalL = fNormal;
     //fNormalR = fNormal;
@@ -400,6 +402,7 @@ void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx
     varIn.UpdateState(air);
 
     //Find interface flux
+    if(DEBUG) {printf("uInFace,%f|%f|%f|%f\tuExFace,%f|%f|%f|%f\n",uInFace[0],uInFace[1],uInFace[2],uInFace[3],uExFace[0],uExFace[1],uExFace[2],uExFace[3]);}
     if (iFaceType == 1 or iFaceType == 2) {
         LDFSS(iaxi,normal[0], normal[1], len, rFace, uInFace, varIn,
               uExFace, varEx, fflux, &parr);

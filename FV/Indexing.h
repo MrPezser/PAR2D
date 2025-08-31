@@ -12,6 +12,7 @@
 #define NVAR 4
 #define NDEGR 1
 #define NSP 1
+#define DEBUG 0
 //#define IVISC (0)
 //#define IGAM (1.4)
 //#define ACCUR (0)

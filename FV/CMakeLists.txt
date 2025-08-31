@@ -11,7 +11,7 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+include_directories(SYSTEM ${I_MPI_ROOT}/include)
 
 find_package(MPI REQUIRED)
 add_executable(MPI2DFV main.cpp EulerFlux.cpp EulerFlux.h BoundaryConditions.cpp BoundaryConditions.h FileIO.cpp FileIO.h Indexing.h SpatialDiscretization.cpp SpatialDiscretization.h MeshModule.cpp MeshModule.h StateVariables.h LUtools.cpp LUtools.h Jacobian.cpp Jacobian.h Thermo.cpp Thermo.h DGP1Tools.cpp DGP1Tools.h)
