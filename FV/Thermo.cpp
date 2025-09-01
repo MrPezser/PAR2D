@@ -11,7 +11,7 @@ double Thermo::CalcEnthalpy(double T){
     // T = temperature
     // Cp = output Cp at temperature
 
-    if (IGAM > 0) { return (T * Rs[isp]/(1.0 - 1.0/(IGAM)) + Fh[isp]);}
+    //if (IGAM > 0) { return (T * Rs[isp]/(1.0 - 1.0/(IGAM)) + Fh[isp]);}
 
     double T2,T3,T4,T5;
     T2 = T*T;
@@ -31,7 +31,7 @@ double Thermo::CalcEnthalpy(double T){
 
 double Thermo::CalcCp(double T){
     int isp = 0;
-    if (IGAM > 0) { return Rs[isp]/(1.0 - 1.0/(IGAM));}
+    //if (IGAM > 0) { return Rs[isp]/(1.0 - 1.0/(IGAM));}
     double T2,T3,T4,T5;
     T2 = T*T;
     T3 = T*T2;

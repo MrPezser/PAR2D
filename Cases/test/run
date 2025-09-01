@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir -p ./Outputs
+mpirun -n 8 -s all /home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV < test.in |& tee out.log

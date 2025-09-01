@@ -1,0 +1,3 @@
+#!/bin/sh
+
+mpirun -n 1 /home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV < cone.in |& tee out.log

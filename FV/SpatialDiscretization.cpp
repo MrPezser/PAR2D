@@ -100,8 +100,6 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
 
 void viscous(int nx, double normy, double normx, double* uLeft, State& varL, double* uRight, State varR, double* dc, double* visc_contrib){
 
-    if (IVISC==0) {return;}
-
     // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
     ///Need to make axisymmatric modification and add extra termsnn/JE
     //printf("Need to update viscous fluxes for axisymmetric and DP higher order\n");
@@ -156,20 +154,29 @@ void viscous(int nx, double normy, double normx, double* uLeft, State& varL, dou
     }
 }
 
-void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* ElemVar, double *uFS, int* ibound, double* geoel,
+void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int* bids, int nx, int ny, Thermo& air, State* ElemVar, double *uFS, int* ibound, double* geoel,
                double* geofa, double* yfa, double* xfa, double* unk, double* ux, double* uy, double* dudt, double* duxdt, double* duydt) {
     int nelem = (nx-1)*(ny-1);
     double *rhsel, *rhselx = nullptr, *rhsely = nullptr, parr;
     rhsel  = (double*)malloc(NVAR*nelem*sizeof(double));
 
-    if (ACCUR==1) {
+    MPI_Barrier(MPI_COMM_WORLD);
+    int bnum;
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    int blockflag[4] = {0,0,0,0};
+
+    if(DEBUG) {printf("::%3d:: Calculating DUDT, accur=%d..... \n", bnum, accur);fflush(stdout);}
+    
+    if (accur==1) {
         rhselx = (double *) malloc(NVAR * nelem * sizeof(double));
         rhsely = (double *) malloc(NVAR * nelem * sizeof(double));
     }
 
     for(int i=0; i<NVAR*nelem; i++) {
         rhsel[i] = 0.0;
-        if (ACCUR==1) {
+        if (accur==1) {
             rhselx[i] = 0.0;
             rhsely[i] = 0.0;
         }
@@ -178,7 +185,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
     //Calculate boundary cell state (ghost state)
     double *uGBot, *uGRight, *uGTop, *uGLeft;
     State *BotVar, *TopVar, *RightVar, *LeftVar;
-    if (ACCUR == 0) {
+    if (accur == 0) {
         uGBot   = (double*)malloc((NVAR * (nx - 1))*sizeof(double));
         uGRight = (double*)malloc((NVAR * (ny - 1))*sizeof(double));
         uGTop   = (double*)malloc((NVAR * (nx - 1))*sizeof(double));
@@ -189,7 +196,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         LeftVar  = (State*)malloc(((ny - 1))*sizeof(State));
         generate_ghost_cells(nx, ny, unk, ux, uy, ElemVar, air, ibound, geofa, uFS, uGBot, uGTop, uGLeft, uGRight,
                              BotVar, TopVar, LeftVar, RightVar);
-    } else if (ACCUR==1){
+    } else if (accur==1){
         uGBot   = (double*)malloc(2*(NVAR * (nx - 1))*sizeof(double));
         uGRight = (double*)malloc(2*(NVAR * (ny - 1))*sizeof(double));
         uGTop   = (double*)malloc(2*(NVAR * (nx - 1))*sizeof(double));
@@ -201,17 +208,11 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         DGP1_ghost_cell_generator(nx, ny, unk, ux, uy, ElemVar, air, ibound, geofa, uFS, uGBot, uGTop, uGLeft, uGRight,
                 BotVar, TopVar, LeftVar, RightVar);
     } else {
-        printf("ACCUR must be 1 or 0.");
+        printf("accur must be 1 or 0.");
         exit(1);
     }
 
     //Get interior boundary information from other processes
-    MPI_Barrier(MPI_COMM_WORLD);
-    int bnum;
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
-    int blockflag[4] = {0,0,0,0};
 
 
     for (int iblk=0; iblk<world_size; iblk++) {
@@ -228,14 +229,14 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             // ~~~~~~~~~~~~~~~~~ LEFT BOUNDARY
             iblk2 = bids[3];
             int ntrans = NVAR * (ny - 1);
-            ntrans *= (ACCUR + 1);
-            // printf("left  comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur+ 1);
+            if(DEBUG) {printf("left  comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double *) malloc(ntrans * sizeof(double));
             urecv = (double *) malloc(ntrans * sizeof(double));
 
             int indjmp = IJ(NVAR - 1, ny - 2, NVAR);
             for (int j = 0; j < ny - 1; j++) {
-                if (ACCUR == 0) {
+                if (accur== 0) {
                     for (int k = 0; k < NVAR; k++) {
                         int iu = IJK(0, j, k, nx - 1, NVAR);
                         usend[IJ(k, j, NVAR)] = unk[iu];
@@ -260,7 +261,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (ACCUR==0) {
+            if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
                     uGLeft[j] = urecv[j];
                 }
@@ -277,6 +278,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                     for (int k=0; k<NVAR; k++) {
                         uGLeft[iuEx1+k] = urecv[IJ(k, j, 2*NVAR)];
                         uGLeft[iuEx2+k] = urecv[IJ(k+NVAR, j, 2*NVAR)];
+			ASSERT(!__isnan(uGLeft[iuEx2+k]),"damnit 2")
+			ASSERT(!__isnan(uGLeft[iuEx1+k]),"damnit 1")
                     }
                     LeftVar[ieEx1].UpdateState(air);
                     LeftVar[ieEx2].UpdateState(air);
@@ -291,13 +294,13 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             // ~~~~~~~~~~~~~~~~~~ Right Boundary
             iblk2 = bids[1];
             int ntrans = NVAR*(ny-1);
-            ntrans *= (ACCUR+1);
-            //printf("right comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur+1);
+            if(DEBUG) {printf("right comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
             for (int j=0; j<ny-1; j++) {
-                if (ACCUR == 0) {
+                if (accur== 0) {
                     for (int k = 0; k < NVAR; k++) {
                         usend[IJ(k,j,NVAR)] = unk[IJK(nx-2,j,k,nx-1,NVAR)];
                     }
@@ -321,7 +324,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (ACCUR==0) {
+            if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
                     uGRight[j] = urecv[j];
                 }
@@ -351,13 +354,13 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             // ~~~~~~~~~~~~~~~~~~~~ Bottom Boundary
             iblk2 = bids[0];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (ACCUR+1);
-            //printf("bot   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur + 1);
+            if(DEBUG) {printf("bot   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
             for (int i=0; i<nx-1; i++) {
-                if (ACCUR == 0) {
+                if (accur== 0) {
                     for (int k = 0; k < NVAR; k++) {
                         int iu = IJK(i, 0, k, nx - 1, NVAR);
                         usend[IJ(k, i, NVAR)] = unk[iu];
@@ -381,7 +384,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (ACCUR ==0) {
+            if (accur==0) {
                 for (int i = 0; i < ntrans; i++) {
                     uGBot[i] = urecv[i];
                 }
@@ -412,13 +415,13 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             // Top Boundary
             iblk2 = bids[2];
             int ntrans = NVAR*(nx-1);
-            ntrans *= (ACCUR+1);
-            //printf("top   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);
+            ntrans *= (accur+1);
+            if(DEBUG) {printf("top   comm, proc: %3d, tgt: %3d, iblk: %3d\n", bnum, iblk2, iblk);fflush(stdout);}
             usend = (double*)malloc(ntrans*sizeof(double));
             urecv = (double*)malloc(ntrans*sizeof(double));
 
             for (int i=0; i<nx-1; i++) {
-                if (ACCUR == 0) {
+                if (accur== 0) {
                     for (int k = 0; k < NVAR; k++) {
                         int iu = IJK(i, ny - 2, k, nx - 1, NVAR);
                         usend[IJ(k, i, NVAR)] = unk[iu];
@@ -442,7 +445,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
                          MPI_COMM_WORLD, &status);
 
-            if (ACCUR==0) {
+            if (accur==0) {
                 for (int i = 0; i < ntrans; i++) {
                     uGTop[i] = urecv[i];
                 }
@@ -469,7 +472,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             free(urecv);
         }
     }// iblk loop
-    //printf("::%3d::Communicated IntBoundry Ghost Cells..... \n", bnum);
+    if(DEBUG) {printf("::%3d::Communicated IntBoundry Ghost Cells..... \n", bnum);fflush(stdout);}
 
 
     //====================Evaluate Flux Contributions====================
@@ -488,7 +491,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             len = geofa[IJK(i,j,3,nx,6)];
             fNormal[0] = geofa[IJK(i,j,4,nx,6)];
             fNormal[1] = geofa[IJK(i,j,5,nx,6)];
-            if (IAXI==1) {
+            if (iaxi==1) {
                 rFace = yfa[IJK(i, j, 1, nx, 2)];
                 yCenter[0] = geoel[IJK(i-1, j, 2, nx-1, 3)];
                 yCenter[1] = geoel[IJK(i,   j, 2, nx-1, 3)];
@@ -505,8 +508,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
 
 
 
-            if (ACCUR==1) {
-                DGP1_xsi_face_integral(ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
+            if (accur==1) {
+                DGP1_xsi_face_integral(iaxi,ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
                                        rFace, fNormal, len, rhsel, rhselx, rhsely);
             } else {
                 uLeft = &unk[iuL];
@@ -514,7 +517,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 varL = ElemVar[ieL];
                 varR = ElemVar[ieR];
 
-                LDFSS(fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+                LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
                 //Add flux contribution to elements
                 for (int kvar=0; kvar<NVAR; kvar++) {
@@ -528,7 +531,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 }
             }
 
-            if (IVISC==1) {
+            if (ivisc==1) {
                 // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
                 double vflux[6], dc[2];
                 //mirror the next interior cell to the boundary for that flux contrib
@@ -562,7 +565,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             len = geofa[IJK(i,j,0,nx,6)];
             fNormal[0] = geofa[IJK(i,j,1,nx,6)];
             fNormal[1] = geofa[IJK(i,j,2,nx,6)];
-            if (IAXI) {
+            if (iaxi) {
                 rFace = yfa[IJK(i, j, 0, nx, 2)];
                 yCenter[0] = geoel[IJK(i, j,   2, nx-1, 3)];
                 yCenter[1] = geoel[IJK(i, j-1, 2, nx-1, 3)];
@@ -579,8 +582,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
 
 
 
-            if (ACCUR==1) {
-                DGP1_eta_face_integral(ieL, ieR, iuL, iuR, unk, ElemVar, ux, uy, yCenter, air,
+            if (accur==1) {
+                DGP1_eta_face_integral(iaxi,ieL,ieR,iuL,iuR,unk,ElemVar,ux,uy,yCenter,air,
                                        rFace, fNormal, len, rhsel, rhselx, rhsely);
             } else {
                 uLeft = &unk[iuL];
@@ -588,7 +591,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 varL = ElemVar[ieL];
                 varR = ElemVar[ieR];
 
-                LDFSS(fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+                LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
                 //Add flux contribution to elements
                 for (int kvar=0; kvar<NVAR; kvar++) {
@@ -602,7 +605,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 }
             }
 
-            if (IVISC==1) {
+            if (ivisc==1) {
                 // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
                 double vflux[6], dc[2];
                 //mirror the next interior cell to the boundary for that flux contrib
@@ -662,7 +665,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                         fNormalL[2]{normx, normy},
                         fNormalR[2]{normx, normy};
         double rFace;
-        if (IAXI==1) {
+        if (iaxi==1) {
             yCenter = ycR;
             rFace = yface;
         } else {
@@ -680,8 +683,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             fNormalR[1] = geofa[IJK(0, j + 1, 5, nx, 6)];
         }
 
-        if (ACCUR==1) {
-            DGP1_boundary_face_integral(ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGLeft, LeftVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGLeft, LeftVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &uGLeft[iuL];
@@ -689,7 +692,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             varL = LeftVar[ieL];
             varR = ElemVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -701,7 +704,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             }
         }
 
-        if(IVISC==1) {
+        if(ivisc==1) {
             // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
             double dc[2], vflux[6]{};
             //mirror the next interior cell to the boundary for that flux contrib
@@ -749,15 +752,15 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         }
 
         //double rFace;
-        if (IAXI) {
+        if (iaxi) {
             rFace = yface;
             yCenter = ycL;
         } else {
             rFace = 0.0;
         }
 
-        if (ACCUR == 1) {
-            DGP1_boundary_face_integral(ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGRight, RightVar,
+        if (accur== 1) {
+            DGP1_boundary_face_integral(iaxi,ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGRight, RightVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &unk[iuL];
@@ -765,7 +768,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             varL = ElemVar[ieL];
             varR = RightVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -777,7 +780,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             }
         }
 
-        if(IVISC==1) {
+        if(ivisc==1) {
             // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
             //mirror the next interior cell to the boundary for that flux contrib
             double dc[2], vflux[6]{};
@@ -826,7 +829,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         }
 
         double rFace;
-        if (IAXI) {
+        if (iaxi) {
             rFace = yface;
             yCenter = ycL;
         } else {
@@ -834,8 +837,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             yCenter = 0.0;
         }
 
-        if (ACCUR==1) {
-            DGP1_boundary_face_integral(ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGBot, BotVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieL, ieEx, iuL, iuEx, unk, ElemVar, ux, uy, iFaceType, uGBot, BotVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
             //printf("(i,j,) rhx,x,y: (%2d,%2d) %f,%f,%f\n\n",
             //       i,0,rhsel[iuL],rhselx[iuL],rhsely[iuL]);
@@ -846,7 +849,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             varL = ElemVar[ieL];
             varR = BotVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -857,7 +860,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
                 }
             }
         }
-        if(IVISC==1) {
+        if(ivisc==1) {
             // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
             double dc[2], vflux[6];
             //mirror the next interior cell to the boundary for that flux contrib
@@ -907,7 +910,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
         }
 
         //double rFace;
-        if (IAXI) {
+        if (iaxi) {
             rFace = yface;
             yCenter = ycR;
         } else {
@@ -915,8 +918,8 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             yCenter = 0.0;
         }
 
-        if (ACCUR==1) {
-            DGP1_boundary_face_integral(ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGTop, TopVar,
+        if (accur==1) {
+            DGP1_boundary_face_integral(iaxi,ieR, ieEx, iuR, iuEx, unk, ElemVar, ux, uy, iFaceType, uGTop, TopVar,
                                         yCenter, air, rFace, fNormal, fNormalL, fNormalR, len, rhsel, rhselx, rhsely);
         } else {
             uLeft = &uGTop[iuL];
@@ -924,7 +927,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             varL = TopVar[ieL];
             varR = ElemVar[ieR];
 
-            LDFSS(normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
+            LDFSS(iaxi,normx, normy, len, rFace, uLeft, varL, uRight, varR, fflux, &parr);
 
             //Add flux contribution to elements
             for (int kvar=0; kvar<NVAR; kvar++) {
@@ -947,7 +950,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
 
         //Find interface flux
         //ASSERT(varR.a*varL.a > 0.0, "nonpositive wave speed")
-        LDFSS(normx, normy, len, yface, &(uGTop[iuL]), TopVar[i], uRight, varR, fflux, &parr);
+        LDFSS(iaxi,normx, normy, len, yface, &(uGTop[iuL]), TopVar[i], uRight, varR, fflux, &parr);
 
 
         //Add flux contribution to elements
@@ -958,7 +961,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
          */
 
 
-        if(IVISC==1) {
+        if(ivisc==1) {
             // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
             //mirror the next interior cell to the boundary for that flux contrib
             double dc[2], vflux[6]{};
@@ -989,7 +992,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
             //printf("(i,j,) rhx,x,y: (%2d,%2d) %f,%f,%f\n",
             //       i,j,rhsel[iu],rhselx[iu],rhsely[iu]);
 
-            if (ACCUR==1) {
+            if (accur==1) {
                 duxdt[iu]     = 3.0 * rhselx[iu]     / vol;
                 duxdt[iu + 1] = 3.0 * rhselx[iu + 1] / vol;
                 duxdt[iu + 2] = 3.0 * rhselx[iu + 2] / vol;
@@ -1009,9 +1012,9 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
 
         }
     }
-    if (ACCUR==1) {
+    if (accur==1) {
         // SINCE M IS DIAGONAL MATRIX, THE BELOW ALREADY INCLUDES THE MULTIPLE 3/VOL FROM ITS INVERSION
-        DGP1_volume_integral(nx, ny, 1.0, xfa, yfa, geoel, unk, ElemVar, duxdt, duydt);
+        DGP1_volume_integral(nx, ny, iaxi, 1.0, xfa, yfa, geoel, unk, ElemVar, duxdt, duydt);
     }
 
     for (int i=0; i<nx-1; i++) {
@@ -1033,7 +1036,7 @@ void calc_dudt(int* bbounds, int* bids, int nx, int ny, Thermo& air, State* Elem
      */
 
     free(rhsel);
-    if (ACCUR==1) {
+    if (accur==1) {
         free(rhselx);
         free(rhsely);
     }

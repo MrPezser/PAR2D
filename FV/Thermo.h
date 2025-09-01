@@ -16,7 +16,7 @@ private:
     void LoadCurveFits(){
         int isp = 0;
         //Function for reading in the therm.dat file and loading in thermo curve fits for 5 species air
-        FILE* ftherm = fopen("../therm_air.dat","r");
+        FILE* ftherm = fopen("thermo.dat","r");
         ASSERT(ftherm != nullptr, "Unable to open thermo file");
 
         //get molecular weight from first line
@@ -44,38 +44,16 @@ private:
 
 public:
     double Ruv = 8314.34;
-    double gam = fabs(IGAM);
     double Mw[NSP]{}, Rs[NSP]{};
     double Ttherm{};
+    double gam;
     double CalcEnthalpy(double T);
     double CalcCp(double T);
 
-    Thermo() {
-    LoadCurveFits();
-
-        /*
-        if (IGAM > 0){
-            //Bisection Search to find T such that gamma is as requested
-            int nsrch = 100;
-            double tmax, tmin, gamma, tolsrch;
-            tolsrch = 1e-4; // tolerance in gamma
-            tmax = 5999.9;
-            tmin = 200.1;
-            for (int iter=0; iter<nsrch; iter++){
-                Ttherm = 0.5 * (tmax + tmin);
-                gamma = calc_gamma(Ttherm);
-
-                if (fabs(IGAM - gamma) < tolsrch) break;
-
-                if (gamma > IGAM) tmin = Ttherm;
-                if (gamma < IGAM) tmax = Ttherm;
-
-            }
-            printf("Constant Gamma Found at T = %f\n EFFECTIVE GAMMA: %f\t REQUESTED GAMMA : %f\n",Ttherm, gamma, IGAM);
-        }
-         */
+    Thermo(double gamma = 1.4) {
+        LoadCurveFits();
+        gam = gamma;
     }
-
 };
 
 

@@ -72,25 +72,85 @@ int main() {
     // Get the rank of the process
     int bnum;
     MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    
+    if(bnum==0) {printf("PAR2D running on %3d processes.\n",world_size);}
 
-    //Read in setup file
-    double p0, u0, tol, CFL, T0, v0, rho0;
-    tol = 1e-6;
-    CFL = 0.01;//0.01;
+    //==================  Read input file  =======================
+    double p0, u0, tol, CFL, T0, v0, rho0, gam, damp, duscale,mxangle;
+    int accur, iaxi, ivisc, niter, printiter, saveiter;
     Thermo air = Thermo();
+    // I know this is awful, fight me about it
+    std::string line;
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "P0 " << line << std::endl;}
+        p0 = stod(line);    
+    std::getline(std::cin, line);
+    if(bnum==0) { std::cout << "u0 " << line << std::endl;}
+        u0 = stod(line);    
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "v0 " << line << std::endl;}
+        v0 = stod(line);    
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "T0 " << line << std::endl;}
+        T0 = stod(line);    
+        rho0 = p0 / (air.Rs[0]*T0);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "gam " << line << std::endl;}
+        gam   = stod(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "accur " << line << std::endl;}
+        accur = stoi(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "iaxi " << line << std::endl;}
+        iaxi  = stoi(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "ivisc " << line << std::endl;}
+        ivisc = stoi(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "niter " << line << std::endl;}
+        niter     = stoi(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "cfl " << line << std::endl;}
+        CFL       = stod(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "tol " << line << std::endl;}
+        tol       = stod(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "printiter " << line << std::endl;}
+        printiter = stoi(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "saveiter " << line << std::endl;}
+        saveiter  = stoi(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "damp " << line << std::endl;}
+        damp    = stod(line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "duscale " << line << std::endl;}
+        duscale = stod(line);
+/////////////////////////////////
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    std::getline(std::cin, line);
+    if(bnum==0) {std::cout << "mxangle (not imp)" << line << std::endl;}
+        mxangle = stod(line);
+/////////////////////////////////
 
-    double fac = 6894.757;
-
-    p0 = 1000.0 ;//5.0*101325.0; //1000.0;
-    u0 = 1736.0 ;//10.0; //1736.0;
-    T0 = 300.0;
-    rho0 = p0 / (air.Rs[0]*T0);
-    v0 = 0.0;
-    int mxiter = NITER; //maximum number of iteration before stopping
-    int printiter = 1;
-    int saveiter = 1000;
-    double damp = 0.9;///fmin(iter / (3000.0*0.3/CFL),1.0);  //coarse mesh 3000, fine 7500
-    double duscale = 0.5;
+    int mxiter = niter; //maximum number of iteration before stopping
     double time = 0.0;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
@@ -108,18 +168,17 @@ int main() {
     FILE* fconn = nullptr;
     int bbounds[4];
     int bids[4]; // bottom, right, top left
-    //for (int iblk=0; iblk<world_size; iblk++) {
-    //    if (iblk == bnum) {
-            printf("Reading Mesh File..... \n");
+    for (int iblk=0; iblk<world_size; iblk++) {
+        if (iblk == bnum) {
+            printf("::%3d:: opening mesh file \n", bnum);
             read_mesh(bnum, &nx, &ny, &ibound, &x, &y);
 
-            printf("Reading Block Connectivity File..... \n");
-            fconn = fopen("../Case/grid.conn", "r");
+            printf("::%3d:: opening conn file \n", bnum);
+            fconn = fopen("./Grid/grid.conn", "r");
             if (fconn == nullptr) {
                 printf("::%3d:: Failed to open conn file.\n", bnum);
                 exit(1);
             }
-            printf("::%3d:: opened conn file \n", bnum);
 
             fscanf(fconn, "%d", &nblock_file);
             if (nblock_file != world_size) {
@@ -140,8 +199,9 @@ int main() {
             //bids[2]--;
             //bids[3]--;
             fclose(fconn);
-    //    }
-    //}
+        }
+	MPI_Barrier(MPI_COMM_WORLD);
+    }
 
     // Calculate nums based off of grid file
     npoin = nx*ny;
@@ -149,13 +209,13 @@ int main() {
     nelem = (nx-1)*(ny-1);
     nface = 2*nelem + nx + ny;
     //Find elem volume and centroid, face len and normals
-    //for (int iblk=0; iblk<world_size; iblk++) {
-    //    if (iblk==bnum) {
+    for (int iblk=0; iblk<world_size; iblk++) {
+        if (iblk==bnum) {
             printf("::%3d::Calculating Grid Metrics..... \n", bnum);
             calc_geoel_geofa(nx, ny, x, y, &geoel, &geofa, &yfa, &xfa);
-    //    }
-    //    MPI_Barrier(MPI_COMM_WORLD);
-    //}
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
     MPI_Barrier(MPI_COMM_WORLD);
     if (bnum==0) printf("==================== Initializing ====================\n");
@@ -166,7 +226,7 @@ int main() {
 
     double *ux = nullptr, *uy = nullptr;
 
-    if (ACCUR == 1) {
+    if (accur == 1) {
         ux = (double *) malloc(NVAR * nelem * sizeof(double));    //xi  derivative
         uy = (double *) malloc(NVAR * nelem * sizeof(double));    //eta derivative
     }
@@ -196,7 +256,7 @@ int main() {
         unk[NVAR*ielem+2] = uFS[2];
         unk[NVAR*ielem+3] = uFS[3];
 
-        if (ACCUR==1) {
+        if (accur==1) {
             ux[NVAR * ielem] = 0.0;
             ux[NVAR * ielem + 1] = 0.0;
             ux[NVAR * ielem + 2] = 0.0;
@@ -212,7 +272,7 @@ int main() {
     MPI_Barrier(MPI_COMM_WORLD);
     if (bnum==0) printf("===== Generating Mesh and Initial State Tecplot Files ====\n");
     print_elem_stats("MeshVolumeStats", nx, ny, geoel);
-    if (ACCUR==1){
+    if (accur==1){
         print_state_DGP1(time, 0, bnum,"Initial State", nx, ny, air, x, y, unk, ux, uy, geoel);
     } else {
         print_state(0, bnum,"Initial State", nx, ny, air, x, y, unk, geoel);
@@ -244,7 +304,7 @@ int main() {
     //save residual history
     FILE *fres;
     if (bnum==0) {
-        fres = fopen("../Outputs/res.tec", "w");
+        fres = fopen("./Outputs/res.tec", "w");
         if (fres == nullptr) {
             printf("~~~~~~~~~ Failed to save residual file, error:%d\n", errno);
         } else {
@@ -265,39 +325,43 @@ int main() {
 
         //Find global timestep based off of CFl condition
         dt = find_dt(air, nx, ny, CFL, unk, ElemVar[0], geofa);
-        //printf("::%3d::Calculated Timestep..... \n", bnum);
+        if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
         // sync timestep across threads
         MPI_Barrier(MPI_COMM_WORLD);
-            for (int iblk = 1; iblk < world_size; iblk++) {
-                double buffer = dt;
-                MPI_Status status;
-                if (bnum == 0) {
-                    MPI_Recv(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD, &status);
-                    dt = fmax(dt, buffer);
-                } else if (iblk == bnum) {
-                    MPI_Send(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-                }
+        for (int iblk = 1; iblk < world_size; iblk++) {
+            double buffer = dt;
+            MPI_Status status;
+            if (bnum == 0) {
+                MPI_Recv(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD, &status);
+                dt = fmax(dt, buffer);
+            } else if (iblk == bnum) {
+                MPI_Send(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
             }
-        //printf("::%3d::Communicated Timestep..... \n", bnum);
-            MPI_Barrier(MPI_COMM_WORLD);
-            for (int iblk = 1; iblk < world_size; iblk++) {
-                double buffer = dt;
-                MPI_Status status;
-                if (bnum == 0) {
-                    MPI_Send(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD);
-                } else if (iblk == bnum) {
-                    MPI_Recv(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
-                    dt = buffer;
-                }
+        }
+        if(DEBUG) {printf("::%3d::Gathered Timestep..... \n", bnum);}
+	fflush(stdout);
+        MPI_Barrier(MPI_COMM_WORLD);
+        for (int iblk = 1; iblk < world_size; iblk++) {
+            double buffer = dt;
+            MPI_Status status;
+            if (bnum == 0) {
+                MPI_Send(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD);
+            } else if (iblk == bnum) {
+                MPI_Recv(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+                dt = buffer;
             }
+        }
+        if(DEBUG) {printf("::%3d::Scattered Timestep..... \n", bnum);}
         time += dt;
+        MPI_Barrier(MPI_COMM_WORLD);
 
         //calculate the right hand side residual term (change of conserved quantities)
-        calc_dudt(bbounds, bids, nx, ny, air, ElemVar, uFS, ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
+        calc_dudt(ivisc, accur, iaxi, mxangle, bbounds, bids, nx, ny, air, ElemVar, uFS,
+                  ibound, geoel, geofa, yfa, xfa, unk, ux, uy, res, resx, resy);
         calculate_residual(nx, ny, res, ressum);
-        //printf("::%3d::Calculated dudt..... \n", bnum);
+        if(DEBUG) {printf("::%3d::Calculated dudt..... \n", bnum);}
 
-        if ( ACCUR == 1 ) {
+        if ( accur == 1 ) {
             calculate_residual(nx, ny, resx, ressumx);
             calculate_residual(nx, ny, resy, ressumy);
         }
@@ -323,14 +387,14 @@ int main() {
 
                 //axi modification
                 double ycc = 1.0;
-                if (IAXI==1) {
+                if (iaxi==1) {
                     ycc = geoel[IJK(i, j, 2, nx - 1, 3)];
                     for (int k = 0; k < NVAR; k++) {
                         xLU[k] *= (1.0 / ycc);
                     }
                 }
 
-                if (ACCUR == 1) {
+                if (accur == 1) {
                     ////  CURRENTLY USING THE CELL CENTERED JACOBIAN VALUE FOR THE 1ST ORDER MODES
                     double *bx = &(resx[IJK(i, j, 0, nx - 1, NVAR)]);
                     double *by = &(resy[IJK(i, j, 0, nx - 1, NVAR)]);
@@ -340,7 +404,7 @@ int main() {
                     LUPSolve(D, P, by, N, xLUy);
 
                     //axi modification
-                    if (IAXI==1) {
+                    if (iaxi==1) {
                         for (int k = 0; k < NVAR; k++) {
                             xLUx[k] *= (1.0 / ycc);
                             xLUy[k] *= (1.0 / ycc);
@@ -357,7 +421,7 @@ int main() {
         //if (iter >= 10000) damp = 0.95;
 
 
-        if (ACCUR ==1){
+        if (accur ==1){
             for (int i=0; i<NVAR; i++) {
                 ressum[i] += ressumx[i] + ressumy[i];
             }
@@ -403,7 +467,7 @@ int main() {
             //unk[iu+3] = fmax(unk[iu+3], 201.0); //limit temperature
             ElemVar[ielem].UpdateState(air);
 
-            if (ACCUR ==1) {
+            if (accur ==1) {
                 ux[iu  ] += dvx[iu  ];
                 ux[iu+1] += dvx[iu + 1];
                 ux[iu+2] += dvx[iu + 2];
@@ -463,7 +527,7 @@ int main() {
             }
         }
         /*
-        if (ACCUR ==1){
+        if (accur ==1){
             for (int i=0; i<NVAR; i++) {
                 ressum[i] += ressumx[i] + ressumy[i];
             }
@@ -483,7 +547,7 @@ int main() {
         */
         if (iter > 0 and iter % saveiter == 0) {
             //printf("Saving current Solution\n");
-            if (ACCUR == 1) {
+            if (accur == 1) {
                 print_state_DGP1(time, iter, bnum, "Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
             } else {
                 print_state(iter, bnum, "Final State", nx, ny, air, x, y, unk, geoel);
@@ -498,7 +562,7 @@ int main() {
             if (iter % printiter == 0) {
                 printf("Iter:%7d\tdt:%7.4e \t\t RelativeTotalResisual:  %8.5e ", \
                         iter, dt, relres_gather);
-                if (ACCUR == 1) {
+                if (accur == 1) {
                     printf("\t damp:%f, duscale:%f", damp, duscale);
                 }
                 printf("\n");
@@ -513,8 +577,12 @@ int main() {
                     int buf = 0;
                     MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
                 }
+            } else { // running single core
+                if (relres_gather < tol) {
+                    break; 
+                }
             }
-        } else {
+        } else { // not the head node
             int buf{0};
             if (bnum < world_size-1) {
                 MPI_Status status;
@@ -538,7 +606,7 @@ int main() {
     }
     printf("::%3d:: Saving Solution File..... \n",bnum);
 
-    if (ACCUR==1){
+    if (accur==1){
         print_state_DGP1(time,iter,bnum,"Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
     } else {
         print_state(iter,bnum,"Final State", nx, ny, air, x, y, unk, geoel);

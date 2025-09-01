@@ -1,3 +1,8 @@
-
-/FV/cmake-build-debug
+/Cases
+/FV/cmake-build
+/FV/cmake-debug
+/FV/cmake-CASS
+/FV/cmake-arch
 /MeshGen/cmake-build-debug
+/FV/cmake-arch
+/FV/cmake-arch

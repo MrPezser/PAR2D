@@ -8,48 +8,36 @@
 #include "BoundaryConditions.h"
 
 void get_u_val(const double* unk, State var, Thermo air,const double* ux, const double* uy, double xsi, double eta, double* uout){
-    if (ACCUR == 1) {
-        for (int k = 0; k < NVAR; k++) {
-            if (k==0) {
+    for (int k = 0; k < NVAR; k++) {
+        if (k==0) {
 
-                //find pressure and derivatives
-                double p = var.p;
-                double dpdxsi, dpdeta, pout;
-                dpdxsi = ux[0] * air.Rs[0] * unk[3] +
-                         unk[0] * air.Rs[0] * ux[3];  // = (dp/drho)(drho/dxsi) + (dp/dT)(dT/dxsi)
-                dpdeta = uy[0] * air.Rs[0] * unk[3] +
-                         unk[0] * air.Rs[0] * uy[3];  // = (dp/drho)(drho/deta) + (dp/dT)(dT/deta)
+            //find pressure and derivatives
+            double p = var.p;
+            double dpdxsi, dpdeta, pout;
+            dpdxsi = ux[0] * air.Rs[0] * unk[3] +
+                     unk[0] * air.Rs[0] * ux[3];  // = (dp/drho)(drho/dxsi) + (dp/dT)(dT/dxsi)
+            dpdeta = uy[0] * air.Rs[0] * unk[3] +
+                     unk[0] * air.Rs[0] * uy[3];  // = (dp/drho)(drho/deta) + (dp/dT)(dT/deta)
 
-                //extrapolate with pressure instead of density
-                pout = p + (xsi*dpdxsi) + (eta*dpdeta);
+            //extrapolate with pressure instead of density
+            pout = p + (xsi*dpdxsi) + (eta*dpdeta);
 
-                uout[k] = pout / (air.Rs[0]*(unk[3] + (xsi * ux[3]) + (eta * uy[3])));
+            uout[k] = pout / (air.Rs[0]*(unk[3] + (xsi * ux[3]) + (eta * uy[3])));
 
-            } else{
-                uout[k] = unk[k] + (xsi * ux[k]) + (eta * uy[k]);
-            }
-        }
     } else {
-        for (int k = 0; k < NVAR; k++) {
-            uout[k] = unk[k];
-        }
+        uout[k] = unk[k] + (xsi * ux[k]) + (eta * uy[k]);
+    }
     }
 }
 
 void get_u_val_standardrecon(const double* unk,const double* ux, const double* uy, double xsi, double eta, double* uout){
-    if (ACCUR == 1) {
-        for (int k = 0; k < NVAR; k++) {
-            uout[k] = unk[k] + (xsi * ux[k]) + (eta * uy[k]);
-        }
-    } else {
-        for (int k = 0; k < NVAR; k++) {
-            uout[k] = unk[k];
-        }
+    for (int k = 0; k < NVAR; k++) {
+        uout[k] = unk[k] + (xsi * ux[k]) + (eta * uy[k]);
     }
 }
 
 
-void DGP1_volume_integral(int nx, int ny, double vol, double* xfa, double* yfa, double* geoel, double* unk, State* ElemVar,
+void DGP1_volume_integral(int nx, int ny, int iaxi, double vol, double* xfa, double* yfa, double* geoel, double* unk, State* ElemVar,
                           double* duxdt, double* duydt){
     // NOTE: Includes axisymetric flux modification
     for (int i=0; i<nx-1; i++){
@@ -64,7 +52,7 @@ void DGP1_volume_integral(int nx, int ny, double vol, double* xfa, double* yfa, 
 
             //Find Flux Vector
             double ycc;
-            if (IAXI==1) {
+            if (iaxi==1) {
                 ycc = geoel[IJK(i,j,2,nx-1, 3)];
             } else {
                 ycc = 1.0;
@@ -124,7 +112,7 @@ void DGP1_volume_integral(int nx, int ny, double vol, double* xfa, double* yfa, 
 }
 
 
-void DGP1_xsi_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
+void DGP1_xsi_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
                         const double* yCenter, Thermo air, double rFace, double* fNormal, double len,
                         double* rhsel, double* rhselx, double* rhsely){
 
@@ -139,7 +127,7 @@ void DGP1_xsi_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
     //Cell centers used for adding in pressure term
     double ycL, ycR;
 
-    if (IAXI == 1) {
+    if (iaxi == 1) {
         ycL = yCenter[0];
         ycR = yCenter[1];
     } else {
@@ -163,7 +151,7 @@ void DGP1_xsi_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
     varR.UpdateState(air);
 
     //Find interface flux
-    LDFSS(fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
+    LDFSS(iaxi, fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
 
     //Add flux contribution to elements
     for (int kvar=0; kvar<NVAR; kvar++){
@@ -196,7 +184,7 @@ void DGP1_xsi_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
     varR.UpdateState(air);
 
     //Find interface flux
-    LDFSS(fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
+    LDFSS(iaxi, fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
 
     //Add flux contribution to elements
     for (int kvar=0; kvar<NVAR; kvar++){
@@ -220,7 +208,7 @@ void DGP1_xsi_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
 
 }
 
-void DGP1_eta_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
+void DGP1_eta_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
                             const double* yCenter, Thermo air, double rFace, double* fNormal, double len,
                             double* rhsel, double* rhselx, double* rhsely){
     //Input left and right variable/state information
@@ -233,7 +221,7 @@ void DGP1_eta_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
 
     //Cell centers used for adding in pressure term
     double ycL, ycR;
-    if (IAXI) {
+    if (iaxi) {
         ycL = yCenter[0];
         ycR = yCenter[1];
     } else {
@@ -257,7 +245,7 @@ void DGP1_eta_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
     varR.UpdateState(air);
 
     //Find interface flux
-    LDFSS(fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
+    LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
 
     //Add flux contribution to elements
     for (int kvar=0; kvar<NVAR; kvar++){
@@ -290,7 +278,7 @@ void DGP1_eta_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
     varR.UpdateState(air);
 
     //Find interface flux
-    LDFSS(fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
+    LDFSS(iaxi,fNormal[0], fNormal[1], len, rFace, uLFace, varL, uRFace, varR, fflux, &parr);
 
     //Add flux contribution to elements
     for (int kvar=0; kvar<NVAR; kvar++){
@@ -314,7 +302,7 @@ void DGP1_eta_face_integral(int ieL, int ieR, int iuL, int iuR,double* unk, Stat
 
 }
 
-void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* unk, State* ElemVar, double* ux, double* uy,
+void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx,double* unk, State* ElemVar, double* ux, double* uy,
                             int iFaceType, double* unkExt, State* EVExt, double yCenter, Thermo air, double rFace,
                             double* fNormal, double* fNormalL, double* fNormalR, double len,
                             double* rhsel, double* rhselx, double* rhsely){
@@ -328,7 +316,7 @@ void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* 
     varIn.Initialize(uInFace);
     //varEx.Initialize(uExFace);
     //varEx.UpdateState(air);
-
+	
     ///////////////////////////////////////////////////////
     //fNormalL = fNormal;
     //fNormalR = fNormal;
@@ -336,7 +324,7 @@ void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* 
 
     //Cell centers used for adding in pressure term
     double ycIn;
-    if (IAXI==1) {
+    if (iaxi==1) {
         ycIn = yCenter;
     } else {
         ycIn = 0.0;
@@ -414,12 +402,13 @@ void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* 
     varIn.UpdateState(air);
 
     //Find interface flux
+    if(DEBUG) {printf("uInFace,%f|%f|%f|%f\tuExFace,%f|%f|%f|%f\n",uInFace[0],uInFace[1],uInFace[2],uInFace[3],uExFace[0],uExFace[1],uExFace[2],uExFace[3]);}
     if (iFaceType == 1 or iFaceType == 2) {
-        LDFSS(normal[0], normal[1], len, rFace, uInFace, varIn,
+        LDFSS(iaxi,normal[0], normal[1], len, rFace, uInFace, varIn,
               uExFace, varEx, fflux, &parr);
     } else {
         ASSERT(iFaceType == 3 or iFaceType == 4, "Invalid iFaceType")
-        LDFSS(normal[0], normal[1], len, rFace, uExFace, varEx,
+        LDFSS(iaxi,normal[0], normal[1], len, rFace, uExFace, varEx,
               uInFace, varIn, fflux, &parr);
     }
 
@@ -499,11 +488,11 @@ void DGP1_boundary_face_integral(int ieIn, int ieEx, int iuIn, int iuEx,double* 
 
     //Find interface flux
     if (iFaceType == 1 or iFaceType == 2) {
-        LDFSS(normal[0], normal[1], len, rFace, uInFace, varIn,
+        LDFSS(iaxi,normal[0], normal[1], len, rFace, uInFace, varIn,
               uExFace, varEx, fflux, &parr);
     } else {
         ASSERT(iFaceType == 3 or iFaceType == 4, "Invalid iFaceType")
-        LDFSS(normal[0], normal[1], len, rFace, uExFace, varEx,
+        LDFSS(iaxi,normal[0], normal[1], len, rFace, uExFace, varEx,
               uInFace, varIn, fflux, &parr);
     }
 
@@ -747,7 +736,7 @@ void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* 
         normy = normy*(1.0 - 0.5*eta) + 0.5*eta*normR[1];
 
         double uFSangle[4];
-        double angle = (MXANGLE * M_PI / 180.0) * (double)j / (double)(ny-2);
+        double angle = 0.0;//(MXANGLE * M_PI / 180.0) * (double)j / (double)(ny-2);
         uFSangle[0] = uFS[0];
         uFSangle[1] = uFS[1]*cos(angle);
         uFSangle[2] = uFS[1]*sin(angle);
@@ -771,7 +760,7 @@ void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* 
         normx = normx*(1.0 + 0.5*eta) - 0.5*eta*normL[0];
         normy = normy*(1.0 + 0.5*eta) - 0.5*eta*normL[1];
 
-        angle = (MXANGLE * M_PI / 180.0) * (double)j / (double)(ny-2);
+        angle = 0.0;//(MXANGLE * M_PI / 180.0) * (double)j / (double)(ny-2);
         uFSangle[0] = uFS[0];
         uFSangle[1] = uFS[1]*cos(angle);
         uFSangle[2] = uFS[1]*sin(angle);
