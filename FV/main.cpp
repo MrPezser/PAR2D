@@ -98,17 +98,40 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec F, void *ctx) {
 }
 
 int solve_with_petsc(int argc, char **argv,\
-	             int mxiter) {
+	             int mxiter. int nelem) {
+    // Input param
+    PetscInt n_solvec_local = nelem*NVAR;
+    PetscInt n_solvec_globl; //Will be calculated later
+    // Function Local Stuff
     TS       ts; // Time Stepping context
     TSAdapt  adapt; //Adaptive timestep context
-    Vec      u;
+    Vec      U;
     MPI_Comm comm;
     AppCtx   app_ctx;
+    PetscScalar *petsc_array;
     //
+    // Initial Stuff
     comm = PETSC_COMM_WORLD;
     PetscCall(TSCreate(comm, &ts));
     PetscCall(TSSetProblemType(ts, TS_NONLINEAR));
-    TSSetApplicationContext(ts, &app_ctx);
+    PetscCall(TSSetApplicationContext(ts, &app_ctx));
+    //
+    // Load Information onto Application Context
+    app_ctx -> geofa = geofa;
+    app_ctx -> geoel = geoel;
+    //.... and so on
+    //
+    //  Set up Solution Vector
+    //    Get total vector length
+    MPI_Allreduce(&n_solvec_local, &n_solvec_global, 1, MPIU_INT, MPI_SUM, comm);
+    //    Create global vector
+    PetscCall(VecCreateMPI(comm, n_solvec_local, n_solvec_globl, &U));
+    //    Copy in the current process's portion of vector
+    PetscCall(VecGetArray(U, &petsc_array));
+    PetscCall(PetscMemcpy(petsc_array, unk, n_solvec_local*sizeof(PetscScalar)));
+    PetscCall(VecRestoreArray(U, &petsc_array));
+    //    Hand off to TS object
+    PetscCall(TSSetSolution(ts, U));
     //
     // Time Stepping Method Setup
     TSSetType(ts, TSEULER); 		// Time Stepping Method
@@ -123,6 +146,11 @@ int solve_with_petsc(int argc, char **argv,\
     //
     PetscCall(TSSetFromOptions(ts));
     PetscCall(TSMonitorSet(ts, TSMonitorStdio, NULL, NULL));
+    //
+    PetscCall(TSSolve(ts, U));
+    //
+    PetscCall(TSDestroy(ts));
+    PetscCall(VecDestroy(U));
     //
     return 0;
 }
