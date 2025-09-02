@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
+
+#include <petscsys.h>
 #include <mpi.h>
 
 #include "SpatialDiscretization.h"
@@ -154,17 +156,18 @@ void viscous(int nx, double normy, double normx, double* uLeft, State& varL, dou
     }
 }
 
-void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int* bids, int nx, int ny, Thermo& air, State* ElemVar, double *uFS, int* ibound, double* geoel,
+int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int* bids, int nx, int ny, Thermo& air, State* ElemVar, double *uFS, int* ibound, double* geoel,
                double* geofa, double* yfa, double* xfa, double* unk, double* ux, double* uy, double* dudt, double* duxdt, double* duydt) {
     int nelem = (nx-1)*(ny-1);
     double *rhsel, *rhselx = nullptr, *rhsely = nullptr, parr;
     rhsel  = (double*)malloc(NVAR*nelem*sizeof(double));
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    int bnum;
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    PetscBarrier(PETSC_NULLPTR);
+    PetscMPIInt bnum,world_size;
+    PetscCallMPI(MPI_Comm_size(PETSC_COMM_WORLD, &world_size));
+    PetscCallMPI(MPI_Comm_rank(PETSC_COMM_WORLD, &bnum));
+
+
     int blockflag[4] = {0,0,0,0};
 
     if(DEBUG) {printf("::%3d:: Calculating DUDT, accur=%d..... \n", bnum, accur);fflush(stdout);}
@@ -259,7 +262,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
             MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+                         PETSC_COMM_WORLD, &status);
 
             if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
@@ -322,7 +325,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
 
             MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+                         PETSC_COMM_WORLD, &status);
 
             if (accur==0) {
                 for (int j = 0; j < ntrans; j++) {
@@ -382,7 +385,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             }
             MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+                         PETSC_COMM_WORLD, &status);
 
             if (accur==0) {
                 for (int i = 0; i < ntrans; i++) {
@@ -443,7 +446,7 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
             }
             MPI_Sendrecv(usend, ntrans, MPI_DOUBLE, iblk2,0,
                          urecv, ntrans, MPI_DOUBLE, iblk2,0,
-                         MPI_COMM_WORLD, &status);
+                         PETSC_COMM_WORLD, &status);
 
             if (accur==0) {
                 for (int i = 0; i < ntrans; i++) {
@@ -1050,4 +1053,5 @@ void calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int
     free(uGRight);
     free(uGTop);
     free(uGLeft);
+    return 0;
 }

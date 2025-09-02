@@ -13,6 +13,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 include_directories(SYSTEM ${I_MPI_ROOT}/include)
 
+# Lines for PETSC
+include(FindPkgConfig REQUIRED)
+set(PETSC $ENV{PETSC_DIR}/$ENV{PETSC_ARCH})
+set(ENV{PKG_CONFIG_PATH} ${PETSC}/lib/pkgconfig)
+
+
 find_package(MPI REQUIRED)
+
 add_executable(MPI2DFV main.cpp EulerFlux.cpp EulerFlux.h BoundaryConditions.cpp BoundaryConditions.h FileIO.cpp FileIO.h Indexing.h SpatialDiscretization.cpp SpatialDiscretization.h MeshModule.cpp MeshModule.h StateVariables.h LUtools.cpp LUtools.h Jacobian.cpp Jacobian.h Thermo.cpp Thermo.h DGP1Tools.cpp DGP1Tools.h)
-target_link_libraries(MPI2DFV PRIVATE MPI::MPI_CXX)
+
+find_package(PkgConfig REQUIRED)
+pkg_search_module(PETSC REQUIRED IMPORTED_TARGET PETSc)
+target_link_libraries(MPI2DFV PRIVATE MPI::MPI_CXX PkgConfig::PETSC)
+
+

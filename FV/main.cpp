@@ -2,10 +2,16 @@
  *
  * T. Sailor Koeplinger - Feb2024
  */
+// C/C++ libraries
 #include <iostream>
 #include <cmath>
-#include <mpi.h>
 #include <unistd.h>
+
+// External Libraries
+#include <mpi.h>
+#include <petscts.h>
+
+// Project Headers
 #include "FileIO.h"
 #include "Indexing.h"
 #include "SpatialDiscretization.h"
@@ -62,8 +68,80 @@ void vec_copy(double n, double* a, double* b){
     }
 }
 
-int main() {
+PetscErrorCode pre_step_routine(TS ts) {
+  AppCtx            *app_ctx;
+  Vec               u;
+  PetscReal         dt, norm;
+  PetscFunctionBeginUser;
 
+  PetscCall(TSGetApplicationContext(ts, &app_ctx));
+  PetscCall(TSGetTimeStep(ts, &dt));
+  PetscCall(TSGetSolution(ts, &u));
+  //
+  //
+  //
+  // Calculate timestep and mpi stuff
+  dt = 1e-5;
+  //
+  //
+  //
+  PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec F, void *ctx) {
+    // calculate dudt
+    // transform to dv
+    // divide to get dv/dt or something like that
+    // output is F
+    // also make it do the mpi shii
+    PetscFunctionreturn(PETSC_SUCCESS);
+}
+
+int solve_with_petsc(int argc, char **argv,\
+	             int mxiter) {
+    TS       ts; // Time Stepping context
+    TSAdapt  adapt; //Adaptive timestep context
+    Vec      u;
+    MPI_Comm comm;
+    AppCtx   app_ctx;
+    //
+    comm = PETSC_COMM_WORLD;
+    PetscCall(TSCreate(comm, &ts));
+    PetscCall(TSSetProblemType(ts, TS_NONLINEAR));
+    TSSetApplicationContext(ts, &app_ctx);
+    //
+    // Time Stepping Method Setup
+    TSSetType(ts, TSEULER); 		// Time Stepping Method
+    TSSetTime(ts, 0.0);     		// Initial Time
+    TSSetTimeStep(ts,1.0);  		// Initial timestep (not used)
+    TSSetMaxSteps(ts, mxiter); 		// Maximum number of time steps
+    // Set Up Function evaluation Stuff
+    PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, app_ctx);
+    TSSetPreStep(ts, pre_step_routine); // Function called at the beginning of each time step
+					// It's used to calculate the timestep based on a CFl condition
+    //TSSetPostStage(ts, .....) 		// Function called after each stage (can be used for filtering)
+    //
+    PetscCall(TSSetFromOptions(ts));
+    PetscCall(TSMonitorSet(ts, TSMonitorStdio, NULL, NULL));
+    //
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    // ========== Input Parameters	
+    double p0, u0, tol, CFL, T0, v0, rho0, gam, damp, duscale,mxangle;
+    int accur, iaxi, ivisc, niter, printiter, saveiter;
+    // ========== Mesh Variables	
+    int nx, ny, npoin, nb, nelem, nface;
+    int* ibound;
+    double *geoel, *geofa, *yfa, *xfa, *x, *y;
+    // ========== Solution Variables	
+    //Vec     unk_gl, res_gl, dv_gl; // Global
+    double *unk, *res, *dv;
+    double *ux = nullptr, *uy = nullptr, *resx=nullptr, *resy=nullptr,  \
+	   *dvx=nullptr,  *dvy=nullptr;
+
+     /*
     // Initialize the MPI environment
     MPI_Init(NULL, NULL);
     // Get the number of processes
@@ -72,12 +150,20 @@ int main() {
     // Get the rank of the process
     int bnum;
     MPI_Comm_rank(MPI_COMM_WORLD, &bnum);
+    */
     
+    //PetscCall(PetscInitialize(&argc, &argv, NULL, help));
+    PetscCall(PetscInitialize(&argc, &argv, NULL, NULL));
+
+    PetscMPIInt bnum,world_size;
+    PetscCallMPI(MPI_Comm_size(PETSC_COMM_WORLD, &world_size));
+    PetscCallMPI(MPI_Comm_rank(PETSC_COMM_WORLD, &bnum));
+
     if(bnum==0) {printf("PAR2D running on %3d processes.\n",world_size);}
 
-    //==================  Read input file  =======================
-    double p0, u0, tol, CFL, T0, v0, rho0, gam, damp, duscale,mxangle;
-    int accur, iaxi, ivisc, niter, printiter, saveiter;
+    //=========================================================================
+    //=========  Read input file  =============================================
+    //=========================================================================
     Thermo air = Thermo();
     // I know this is awful, fight me about it
     std::string line;
@@ -96,7 +182,8 @@ int main() {
     if(bnum==0) {std::cout << "T0 " << line << std::endl;}
         T0 = stod(line);    
         rho0 = p0 / (air.Rs[0]*T0);
-/////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     std::getline(std::cin, line);
@@ -112,7 +199,8 @@ int main() {
     std::getline(std::cin, line);
     if(bnum==0) {std::cout << "ivisc " << line << std::endl;}
         ivisc = stoi(line);
-/////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     std::getline(std::cin, line);
@@ -131,7 +219,8 @@ int main() {
     std::getline(std::cin, line);
     if(bnum==0) {std::cout << "saveiter " << line << std::endl;}
         saveiter  = stoi(line);
-/////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     std::getline(std::cin, line);
@@ -141,30 +230,27 @@ int main() {
     std::getline(std::cin, line);
     if(bnum==0) {std::cout << "duscale " << line << std::endl;}
         duscale = stod(line);
-/////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     std::getline(std::cin, line);
     if(bnum==0) {std::cout << "mxangle (not imp)" << line << std::endl;}
         mxangle = stod(line);
-/////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
 
     int mxiter = niter; //maximum number of iteration before stopping
     double time = 0.0;
 
     if (bnum==0) printf("==================== Loading Mesh ====================\n");
-    //==================== Load Mesh ====================
-    int nx, ny, npoin, nb, nelem, nface;
-    double *x, *y;
-    int* ibound;
-    double* geoel;
-    double* geofa;
-    double* yfa;
-    double* xfa;
+    //=========================================================================
+    //==========  Load Mesh  ==================================================
+    //=========================================================================
 
     //read in mesh file
-    int nblock_file;
+    int nblock_file,ncell_glob;
     FILE* fconn = nullptr;
     int bbounds[4];
     int bids[4]; // bottom, right, top left
@@ -180,7 +266,7 @@ int main() {
                 exit(1);
             }
 
-            fscanf(fconn, "%d", &nblock_file);
+            fscanf(fconn, "%d,%d", &nblock_file, &ncell_glob);
             if (nblock_file != world_size) {
                 printf("Discrepancy between #blocks and #procs!");
                 exit(1);
@@ -200,7 +286,7 @@ int main() {
             //bids[3]--;
             fclose(fconn);
         }
-	MPI_Barrier(MPI_COMM_WORLD);
+	PetscBarrier(PETSC_NULLPTR);
     }
 
     // Calculate nums based off of grid file
@@ -214,26 +300,40 @@ int main() {
             printf("::%3d::Calculating Grid Metrics..... \n", bnum);
             calc_geoel_geofa(nx, ny, x, y, &geoel, &geofa, &yfa, &xfa);
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    //
+    //
+    PetscBarrier(PETSC_NULLPTR);
     if (bnum==0) printf("==================== Initializing ====================\n");
-    //==================== Setup for Sim ====================
+    //=========================================================================
+    //==========  Setup Solution Variables  ===================================
+    //=========================================================================
+    //
+    // Allocate Vectors with PETSc
+    int n_solvec_local = NVAR*nelem;
+    //int n_solvec_globl = NVAR*ncell_glob;
+    // Global
+    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &unk_gl));
+    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &res_gl));
+    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &dv_gl));
+    // Local
     auto* unk  = (double*)malloc(NVAR*nelem*sizeof(double));
     auto* res  = (double*)malloc(NVAR*nelem*sizeof(double));
     auto* dv   = (double*)malloc(NVAR*nelem*sizeof(double));
-
-    double *ux = nullptr, *uy = nullptr;
-
+    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &unk);
+    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &res);
+    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &dv);
+    //
     if (accur == 1) {
+        printf("PETSc suport of higher order hasn't been implimented yet.\n"); exit(1);
         ux = (double *) malloc(NVAR * nelem * sizeof(double));    //xi  derivative
         uy = (double *) malloc(NVAR * nelem * sizeof(double));    //eta derivative
+        resx = (double*)malloc(NVAR*nelem*sizeof(double));
+        resy = (double*)malloc(NVAR*nelem*sizeof(double));
+        dvx  = (double*)malloc(NVAR*nelem*sizeof(double));
+        dvy  = (double*)malloc(NVAR*nelem*sizeof(double));
     }
-    auto* resx = (double*)malloc(NVAR*nelem*sizeof(double));
-    auto* resy = (double*)malloc(NVAR*nelem*sizeof(double));
-    auto* dvx  = (double*)malloc(NVAR*nelem*sizeof(double));
-    auto* dvy  = (double*)malloc(NVAR*nelem*sizeof(double));
 
     //initialize solution on mesh (zero aoa)
     double uFS[4], uBP[4];
@@ -269,7 +369,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    PetscBarrier(PETSC_NULLPTR);
     if (bnum==0) printf("===== Generating Mesh and Initial State Tecplot Files ====\n");
     print_elem_stats("MeshVolumeStats", nx, ny, geoel);
     if (accur==1){
@@ -313,7 +413,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    PetscBarrier(PETSC_NULLPTR);
     if (bnum==0) printf("==================== Starting Solver ====================\n");
 
 
@@ -327,33 +427,33 @@ int main() {
         dt = find_dt(air, nx, ny, CFL, unk, ElemVar[0], geofa);
         if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
         // sync timestep across threads
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
         for (int iblk = 1; iblk < world_size; iblk++) {
             double buffer = dt;
             MPI_Status status;
             if (bnum == 0) {
-                MPI_Recv(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD, &status);
+                MPI_Recv(&buffer, 1, MPI_DOUBLE, iblk, 0, PETSC_COMM_WORLD, &status);
                 dt = fmax(dt, buffer);
             } else if (iblk == bnum) {
-                MPI_Send(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+                MPI_Send(&buffer, 1, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD);
             }
         }
         if(DEBUG) {printf("::%3d::Gathered Timestep..... \n", bnum);}
 	fflush(stdout);
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
         for (int iblk = 1; iblk < world_size; iblk++) {
             double buffer = dt;
             MPI_Status status;
             if (bnum == 0) {
-                MPI_Send(&buffer, 1, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD);
+                MPI_Send(&buffer, 1, MPI_DOUBLE, iblk, 0, PETSC_COMM_WORLD);
             } else if (iblk == bnum) {
-                MPI_Recv(&buffer, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
+                MPI_Recv(&buffer, 1, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD, &status);
                 dt = buffer;
             }
         }
         if(DEBUG) {printf("::%3d::Scattered Timestep..... \n", bnum);}
         time += dt;
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
 
         //calculate the right hand side residual term (change of conserved quantities)
         calc_dudt(ivisc, accur, iaxi, mxangle, bbounds, bids, nx, ny, air, ElemVar, uFS,
@@ -441,17 +541,17 @@ int main() {
         }
 
         double rss_gather[2] = {ressumsum, res0sum};
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
         for (int iblk=1; iblk<world_size; iblk++) {
             double buffer[2] = {rss_gather[0], rss_gather[1]};
             MPI_Status status;
 
             if (bnum==0) {
-                MPI_Recv(&buffer, 2, MPI_DOUBLE, iblk, 0, MPI_COMM_WORLD, &status);
+                MPI_Recv(&buffer, 2, MPI_DOUBLE, iblk, 0, PETSC_COMM_WORLD, &status);
                 rss_gather[0] += buffer[0];
                 rss_gather[1] += buffer[1];
             } else if (iblk==bnum) {
-                MPI_Send(&buffer, 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
+                MPI_Send(&buffer, 2, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD);
             }
         }
 
@@ -553,7 +653,7 @@ int main() {
                 print_state(iter, bnum, "Final State", nx, ny, air, x, y, unk, geoel);
             }
         }
-        MPI_Barrier(MPI_COMM_WORLD);
+        PetscBarrier(PETSC_NULLPTR);
         if (bnum==0) {
             double relres_gather = rss_gather[0] / rss_gather[1];
             fprintf(fres, "%d,\t%le\n", iter, relres_gather);
@@ -570,12 +670,12 @@ int main() {
             if (world_size > 1) {
                 if (relres_gather < tol) {
                     int buf = 1;
-                    MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+                    MPI_Send(&buf, 1, MPI_INT, 1, 0, PETSC_COMM_WORLD);
                     printf("Thread %3d breaking main loop.\n", bnum);
                     break;  // and damp >= 1) break;
                 } else {
                     int buf = 0;
-                    MPI_Send(&buf, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+                    MPI_Send(&buf, 1, MPI_INT, 1, 0, PETSC_COMM_WORLD);
                 }
             } else { // running single core
                 if (relres_gather < tol) {
@@ -586,11 +686,11 @@ int main() {
             int buf{0};
             if (bnum < world_size-1) {
                 MPI_Status status;
-                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
-                MPI_Send(&buf, 1, MPI_INT, bnum+1, 0, MPI_COMM_WORLD);
+                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, PETSC_COMM_WORLD, &status);
+                MPI_Send(&buf, 1, MPI_INT, bnum+1, 0, PETSC_COMM_WORLD);
             } else {
                 MPI_Status status;
-                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, MPI_COMM_WORLD, &status);
+                MPI_Recv(&buf, 1, MPI_INT, bnum - 1, 0, PETSC_COMM_WORLD, &status);
             }
             if (buf ==1) {
                 printf("Thread %3d breaking main loop.\n", bnum);
@@ -599,7 +699,7 @@ int main() {
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    PetscBarrier(PETSC_NULLPTR);
     sleep(1);
     if (bnum==0) {
         printf("==================== Calculation Finished ====================\n");
@@ -622,5 +722,6 @@ int main() {
     free(resy);
     free(dv);
     printf("%3d Complete.\n",bnum);
-    MPI_Finalize();
+    //MPI_Finalize();
+    PetscCall(PetscFinalize());
 }
