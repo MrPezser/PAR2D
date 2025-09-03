@@ -21,6 +21,16 @@
 #include "Jacobian.h"
 #include "Thermo.h"
 
+  // List of context needed: air,nx,ny,CFL,Elemvar, geofa
+typedef struct {
+    Thermo          air;
+    PetscInt        nx;
+    PetscInt        ny;     //////   	MAY HAVE ISSUES WITH CONVERSION TO REGULAR INT  
+    PetscScalar     CFL;
+    *State          ElemVar;
+    *double         geofa;
+} AppCtx	
+
 
 double find_dt(Thermo& air, int nx, int ny, double CFL, const double* uRef, State& var, double* geofa){
     double vmax, dt, mindx;
@@ -61,43 +71,216 @@ void calculate_residual(int nx, int ny, double* res, double* ressum){
     ressum[2] = sqrt(res2[2]);
     ressum[3] = sqrt(res2[3]);
 }
-
-void vec_copy(double n, double* a, double* b){
-    for (int i=0; i<n; i++){
-        a[i] = b[i];
-    }
-}
-
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
 PetscErrorCode pre_step_routine(TS ts) {
   AppCtx            *app_ctx;
-  Vec               u;
+  Vec               U;
   PetscReal         dt, norm;
+  MPI_Comm          comm;
+  //
   PetscFunctionBeginUser;
-
+  comm = PETSC_COMM_WORLD;
+  //
+  int world_size,bnum;
+  double dt, dt_glob;
+  //
+  PetscCallMPI(MPI_Comm_size(comm, &world_size));
+  PetscCallMPI(MPI_Comm_rank(comm, &bnum));
+  //
   PetscCall(TSGetApplicationContext(ts, &app_ctx));
+  //
+  // List of context needed: air,nx,ny,CFL,Elemvar, geofa
+  //Get needed values from ts context
   PetscCall(TSGetTimeStep(ts, &dt));
-  PetscCall(TSGetSolution(ts, &u));
+  PetscCall(TSGetSolution(ts, &U));
+  // get local solution vector
+  PetscCall(VecGetArray(U, &unk));
   //
+  // ==========================================================================
+  // Compute Timestep
+  // 
+  // Find global timestep based off of CFl condition
+  dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny ,app_ctx->CFL, 
+	       unk,          app_ctx->ElemVar[0],     app_ctx->geofa);
+  if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
+  // 
+  // Get the smalest dt out of all processes
+  PetscCall(MPI_Allreduce(&dt,&dt_glob, 1, MPI_DOUBLE, MPI_MIN, comm));
+  PetscCall(TSSetTimeStep(ts, dt_glob));
+  if(DEBUG) {printf("::%3d::Communicated Timestep..... \n", bnum);}
   //
+  // ==========================================================================
   //
-  // Calculate timestep and mpi stuff
-  dt = 1e-5;
-  //
-  //
-  //
+  // Cleanup, cleanup, everybody everywhere....
+  PetscCall(VecRestoreArray(U, &unk));
   PetscFunctionReturn(PETSC_SUCCESS);
+  //
 }
+//
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
+//
+PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
+    // INPUS
+    //       ts  :: timestepping context struct
+    //       t   :: solution time
+    //       u   :: solution vector (global)
+    //       F   :: RHS vector (global)
+    //       ctx :: user specified context (big boy)
+    Vec               Fu
+    PetscScalar       dt, norm;
+    PetscScalar       *unk, *res, *dv;
+    PetscInt          world_size,bnum;
+    MPI_Comm          comm;
+    //
+    PetscFunctionBeginUser;
+    comm = PETSC_COMM_WORLD;
+    //
+    double ressum;
+    //
+    PetscCallMPI(MPI_Comm_size(comm, &world_size));
+    PetscCallMPI(MPI_Comm_rank(comm, &bnum));
+    //
+    PetscCall(TSGetApplicationContext(ts, &ac));
+    // Need for AppCtx: ivisc, accur, iaxi, mxangle, bbounds, bids, nx, ny, air, elemvar
+    //                  uFSm ibound, geoel, geofa, yfa, xfa, unk,
+    //                  ux(tmp nullptr), uy(same), resx(same), resy(same)
+    //
+    PetscCall(VecDuplicate(Fv,&Fu));
+    //
+    // Step1 calculate dudt
+    //.... Separate out input (unk), and output (res)   
+    PetscCall(VecGetArray(U,  &unk));
+    PetscCall(VecGetArray(Fu, &res));
+    PetscCall(VecGetArray(Fv, &dv ));
+    //
+    calc_dudt(ac->ivisc, ac->accur,  ac->iaxi,  ac->mxangle, ac->bbounds,
+              ac->bids,  ac->nx,     ac->ny,    ac->air,     ac-> ElemVar,
+	      ac->uFS,   ac->ibound, ac->geoel, ac->geofa,   ac->yfa,  ac->xfa,
+	      /**/unk,   ac->ux,     ac->uy,    /**/res,     ac->resx, ac->resy);
+    if(DEBUG) {printf("::%3d::Calculated dudt..... \n", bnum);}
+    //calculate the right hand side residual term (change of conserved quantities)
+    calculate_residual(nx, ny, res, ressum);
+    /*
+        if ( accur == 1 ) {
+            calculate_residual(nx, ny, resx, ressumx);
+            calculate_residual(nx, ny, resy, ressumy);
+        }
+    */
+    //
+    //========== Solve linear system on each element (turns chg in conservatives to change in solution variables)
+    // I'm sure there's a better way to do this...
+    auto D = (double**)malloc((NVAR) * sizeof(double*));
+    for (int k = 0; k < NVAR; k++)
+        D[k] = (double*)malloc( (NVAR) * sizeof(double));
+    //
+    //PetscCall(TSGetTimeStep(ts, &dt));
+    //
+    for (int i=0; i<(ac->nx-1); i++) {
+        for (int j=0; j<(ac->ny-1); j++) {
+            double *unkij = &(unk[IJK(i, j, 0, nx-1, NVAR)]);
+            double LUtol = 1e-16;
+            int iel = IJ(i,j,nx-1);
+            int N = NVAR;
+            int P[NVAR+1]{}; //permutation vector for pivoting
 
-PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec F, void *ctx) {
-    // calculate dudt
-    // transform to dv
-    // divide to get dv/dt or something like that
-    // output is F
-    // also make it do the mpi shii
+            //get the rhs block needed
+            double *b = &(res[IJK(i, j, 0, nx - 1, NVAR)]);
+            double *xLU = &(dv[ IJK(i, j, 0, nx - 1, NVAR)]);
+
+            //Evaluate the jacobian / Implicit matrix
+            BuildJacobian(1.0, unkij, ac->ElemVar[iel], D);
+            LUPDecompose(D, N, LUtol, P);
+            LUPSolve(D, P, b, N, xLU);
+
+            //axi modification
+            double ycc = 1.0;
+            if (iaxi==1) {
+                ycc = ac->geoel[IJK(i, j, 2, nx - 1, 3)];
+                for (int k = 0; k < NVAR; k++) {
+                    xLU[k] *= (1.0 / ycc);
+                }
+            }
+    /*   Additions for 2nd order
+            if (accur == 1) {
+                ////  CURRENTLY USING THE CELL CENTERED JACOBIAN VAL
+                double *bx = &(resx[IJK(i, j, 0, nx - 1, NVAR)]);
+                double *by = &(resy[IJK(i, j, 0, nx - 1, NVAR)]);
+                double *xLUx = &(dvx[IJK(i, j, 0, nx - 1, NVAR)]);
+                double *xLUy = &(dvy[IJK(i, j, 0, nx - 1, NVAR)]);
+                LUPSolve(D, P, bx, N, xLUx);
+                LUPSolve(D, P, by, N, xLUy);
+
+                //axi modification
+                if (iaxi==1) {
+                    for (int k = 0; k < NVAR; k++) {
+                        xLUx[k] *= (1.0 / ycc);
+                        xLUy[k] *= (1.0 / ycc);
+                    }
+                }
+            }
+    */
+        }
+    }
+    //
+    // dt in the jacobian is replaced with 1.0, which will turn this from a 
+    // dimensional delta_V to a dv/dt
+    // Rest is code for accumilating the residual for solution monitoring
+    // .... sounds like TS may already do this so not implementing for now
+    /*
+    if (accur ==1){
+        for (int i=0; i<NVAR; i++) {
+            ressum[i] += ressumx[i] + ressumy[i];
+        }
+    }
+    if (iter==0) {
+        for (int i=0; i<NVAR; i++){
+            res0[i] = ressum[i];
+        }
+    }
+    restotal = 0.0;
+    double ressumsum{0.0}, res0sum{0.0};
+    for (int i=0; i<NVAR; i++){
+        ASSERT(ressum[i] >= 0.0, "Nonpositive Residual")
+        if (res0[i] < 1e-16) res0[i] = fmax(ressum[i], 1e-16);
+        ressumsum += ressum[i];
+        res0sum += res0[i];
+    }
+
+    double rss_gather[2] = {ressumsum, res0sum};
+    PetscBarrier(PETSC_NULLPTR);
+    for (int iblk=1; iblk<world_size; iblk++) {
+        double buffer[2] = {rss_gather[0], rss_gather[1]};
+        MPI_Status status;
+
+        if (bnum==0) {
+            MPI_Recv(&buffer, 2, MPI_DOUBLE, iblk, 0, PETSC_COMM_WORLD, &status);
+            rss_gather[0] += buffer[0];
+            rss_gather[1] += buffer[1];
+        } else if (iblk==bnum) {
+            MPI_Send(&buffer, 2, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD);
+        }
+    }
+    */
+    //
+    //
+    //
+    // 
+    PetscCall(VecRestoreArray(U, &unk));
+    PetscCall(VecRestoreArray(Fu, &res));
+    PetscCall(VecRestoreArray(Fv, &dv ));
+    PetscCall(VecDestroy(&Fu));
     PetscFunctionreturn(PETSC_SUCCESS);
-}
-
-int solve_with_petsc(int argc, char **argv,\
+} // calc_rhs
+//
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
+//
+int solve_with_petsc(int argc, char **argv,
 	             int mxiter. int nelem) {
     // Input param
     PetscInt n_solvec_local = nelem*NVAR;
@@ -109,35 +292,36 @@ int solve_with_petsc(int argc, char **argv,\
     MPI_Comm comm;
     AppCtx   app_ctx;
     PetscScalar *petsc_array;
-    //
+    
+    // Load Information onto Application Context
+    app_ctx -> geofa = geofa;
+    app_ctx -> geoel = geoel;
+    //.... and so on
+
     // Initial Stuff
     comm = PETSC_COMM_WORLD;
     PetscCall(TSCreate(comm, &ts));
     PetscCall(TSSetProblemType(ts, TS_NONLINEAR));
     PetscCall(TSSetApplicationContext(ts, &app_ctx));
-    //
-    // Load Information onto Application Context
-    app_ctx -> geofa = geofa;
-    app_ctx -> geoel = geoel;
-    //.... and so on
-    //
-    //  Set up Solution Vector
-    //    Get total vector length
-    MPI_Allreduce(&n_solvec_local, &n_solvec_global, 1, MPIU_INT, MPI_SUM, comm);
-    //    Create global vector
+    
+    //  Initialize Solution Vector
+    //....  Get total vector length
+    MPI_Allreduce(&n_solvec_local, &n_solvec_global, 1, MPI_INT, MPI_SUM, comm);
+    //....  Create global vector
     PetscCall(VecCreateMPI(comm, n_solvec_local, n_solvec_globl, &U));
-    //    Copy in the current process's portion of vector
+    //....  Copy in the current process's portion of vector
     PetscCall(VecGetArray(U, &petsc_array));
     PetscCall(PetscMemcpy(petsc_array, unk, n_solvec_local*sizeof(PetscScalar)));
     PetscCall(VecRestoreArray(U, &petsc_array));
-    //    Hand off to TS object
+    //....  Hand off to TS object
     PetscCall(TSSetSolution(ts, U));
-    //
+    
     // Time Stepping Method Setup
     TSSetType(ts, TSEULER); 		// Time Stepping Method
     TSSetTime(ts, 0.0);     		// Initial Time
-    TSSetTimeStep(ts,1.0);  		// Initial timestep (not used)
+    TSSetTimeStep(ts,1.0);  		// Initial timestep (overwritten in prestep)
     TSSetMaxSteps(ts, mxiter); 		// Maximum number of time steps
+
     // Set Up Function evaluation Stuff
     PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, app_ctx);
     TSSetPreStep(ts, pre_step_routine); // Function called at the beginning of each time step
@@ -154,7 +338,9 @@ int solve_with_petsc(int argc, char **argv,\
     //
     return 0;
 }
-
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
 int main(int argc, char **argv) {
     // ========== Input Parameters	
     double p0, u0, tol, CFL, T0, v0, rho0, gam, damp, duscale,mxangle;
@@ -166,7 +352,7 @@ int main(int argc, char **argv) {
     // ========== Solution Variables	
     //Vec     unk_gl, res_gl, dv_gl; // Global
     double *unk, *res, *dv;
-    double *ux = nullptr, *uy = nullptr, *resx=nullptr, *resy=nullptr,  \
+    double *ux = nullptr, *uy = nullptr, *resx=nullptr, *resy=nullptr,  
 	   *dvx=nullptr,  *dvy=nullptr;
 
      /*
