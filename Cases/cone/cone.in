@@ -9,13 +9,13 @@ Physics: GAM ACCUR IAXI IVISC
 ====================
 1.4
 0
-0
+1
 0
 
 Iteration: NITER CFL TOL PRINTITER SAVEITER
 ===========================================
-5000
-1.5
+2000
+10.0
 0.000001
 1
 1000

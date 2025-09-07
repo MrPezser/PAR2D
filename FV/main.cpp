@@ -190,8 +190,14 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec U, Vec Fv, void *ctx) {
     PetscCall(VecGetArray(Fu, &res));
     PetscCall(VecGetArray(Fv, &dv ));
     //
+    for (int ielem=0; ielem<(ac->nx-1)*(ac->ny-1); ielem++){
+	const double *unkel = &(unk[ielem*NVAR]);
+	ac->ElemVar[ielem].Initialize(unkel);
+        ac->ElemVar[ielem].UpdateState(ac->air);
+    }
+    //
     calc_dudt(ac->ivisc, ac->accur,  ac->iaxi,  ac->mxangle, ac->bbounds,
-              ac->bids,  ac->nx,     ac->ny,    ac->air,     ac-> ElemVar,
+              ac->bids,  ac->nx,     ac->ny,    ac->air,     ac->ElemVar,
 	      ac->uFS,   ac->ibound, ac->geoel, ac->geofa,   ac->yfa,  ac->xfa,
 	      /**/unk,   ac->ux,     ac->uy,    /**/res,     ac->resx, ac->resy);
     if(DEBUG) {printf("::%3d::Calculated dudt..... \n", bnum);}
@@ -375,11 +381,11 @@ int solve_with_petsc(
     //....  Get total vector length
     MPI_Allreduce(&n_solvec_local, &n_solvec_globl, 1, MPI_INT, MPI_SUM, comm);
     //....  Create global vector
-    PetscCall(VecCreateMPI(comm, n_solvec_local, n_solvec_globl, &U));
+    PetscCall(VecCreateMPIWithArray(comm, NVAR, n_solvec_local, n_solvec_globl, unk, &U));
     //....  Copy in the current process's portion of vector
-    PetscCall(VecGetArray(U, &petsc_array));
-    PetscCall(PetscMemcpy(petsc_array, unk, n_solvec_local*sizeof(PetscScalar)));
-    PetscCall(VecRestoreArray(U, &petsc_array));
+    //PetscCall(VecGetArray(U, &petsc_array));
+    //PetscCall(PetscMemcpy(petsc_array, unk, n_solvec_local*sizeof(PetscScalar)));
+    //PetscCall(VecRestoreArray(U, &petsc_array));
     // Debug printout
     //PetscPrintf(PETSC_COMM_WORLD, "========== Initial Solution Vector\n");
     //VecView(U, PETSC_VIEWER_STDOUT_WORLD);
