@@ -7,7 +7,7 @@
 
 #include "StateVariables.h"
 
-void LDFSS(int iaxi,double normx, double normy, double len, double yface, double* uLeft, State varL, double* uRight, State varR,
+void LDFSS(int iaxi,double normx, double normy, double len, double yface,const double* uLeft, State varL,const double* uRight, State varR,
            double* flux, double* parr);
 //void LDFSS(double normx, double normy, double* uLeft, State varL, double* uRight, State varR, double* fout);
 

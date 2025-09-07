@@ -37,7 +37,7 @@ void get_u_val_standardrecon(const double* unk,const double* ux, const double* u
 }
 
 
-void DGP1_volume_integral(int nx, int ny, int iaxi, double vol, double* xfa, double* yfa, double* geoel, double* unk, State* ElemVar,
+void DGP1_volume_integral(int nx, int ny, int iaxi, double vol, double* xfa, double* yfa, double* geoel,const double* unk, State* ElemVar,
                           double* duxdt, double* duydt){
     // NOTE: Includes axisymetric flux modification
     for (int i=0; i<nx-1; i++){
@@ -47,7 +47,7 @@ void DGP1_volume_integral(int nx, int ny, int iaxi, double vol, double* xfa, dou
 
             //Calculate cell centered flux
             double Fx[NVAR], Fy[NVAR];
-            double* unkij = &(unk[iu]);
+            const double* unkij = &(unk[iu]);
             State var = ElemVar[iel];
 
             //Find Flux Vector
@@ -112,7 +112,7 @@ void DGP1_volume_integral(int nx, int ny, int iaxi, double vol, double* xfa, dou
 }
 
 
-void DGP1_xsi_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
+void DGP1_xsi_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,const double* unk, State* ElemVar, double* ux, double* uy,
                         const double* yCenter, Thermo air, double rFace, double* fNormal, double len,
                         double* rhsel, double* rhselx, double* rhsely){
 
@@ -208,7 +208,7 @@ void DGP1_xsi_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double*
 
 }
 
-void DGP1_eta_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double* unk, State* ElemVar, double* ux, double* uy,
+void DGP1_eta_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,const double* unk, State* ElemVar, double* ux, double* uy,
                             const double* yCenter, Thermo air, double rFace, double* fNormal, double len,
                             double* rhsel, double* rhselx, double* rhsely){
     //Input left and right variable/state information
@@ -302,13 +302,15 @@ void DGP1_eta_face_integral(int iaxi, int ieL, int ieR, int iuL, int iuR,double*
 
 }
 
-void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx,double* unk, State* ElemVar, double* ux, double* uy,
-                            int iFaceType, double* unkExt, State* EVExt, double yCenter, Thermo air, double rFace,
+void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx,const double* unk, State* ElemVar, double* ux, double* uy,
+                            int iFaceType,const double* unkExt, State* EVExt, double yCenter, Thermo air, double rFace,
                             double* fNormal, double* fNormalL, double* fNormalR, double len,
                             double* rhsel, double* rhselx, double* rhsely){
     //Input left and right variable/state information
     //Output addition of flux contribution to respective elemets
-    double fflux[NVAR], uInFace[NVAR], *uExFace, parr;
+    double uInFace[NVAR];
+    const double *uExFace;
+    double parr, fflux[NVAR];
     double normal[2];
     uExFace = &(unkExt[iuEx]);
     State varIn = State();
@@ -519,7 +521,7 @@ void DGP1_boundary_face_integral(int iaxi,int ieIn, int ieEx, int iuIn, int iuEx
     ASSERT(!__isnan(fflux[0]+fflux[1]+fflux[2]+fflux[3]),"NAN in flux splitting")
 }
 
-void get_boundary_point(int btype, double normx, double normy, double* uFS, double* unkiint, State EViel, Thermo& air,
+void get_boundary_point(int btype, double normx, double normy, double* uFS, const double* unkiint, State EViel, Thermo& air,
                         double* uxiint, double* uyiint, double xsi, double eta, State& ElemVarieex, double* uGiuex){
     double unkelij[NVAR];
     State varij = State();
@@ -534,7 +536,7 @@ void get_boundary_point(int btype, double normx, double normy, double* uFS, doub
     ElemVarieex.UpdateState(air);
 }
 
-void DGP1_ghost_cell_generator(int nx, int ny, double* unk, double* ux, double* uy, State* ElemVar, Thermo air, int* ibound,
+void DGP1_ghost_cell_generator(int nx, int ny, const double* unk, double* ux, double* uy, State* ElemVar, Thermo air, int* ibound,
                                double* geofa, double* uFS, double* uGBot, double* uGTop, double* uGLeft, double* uGRight,
                                State* BotVar, State* TopVar, State* LeftVar, State* RightVar){
     double unkelij[NVAR];

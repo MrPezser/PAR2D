@@ -16,7 +16,7 @@
 #include "StateVariables.h"
 #include "DGP1Tools.h"
 
-void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, State* ElemVar, Thermo air, int* ibound,
+void generate_ghost_cells(int nx, int ny, const double* unk, double* ux, double* uy, State* ElemVar, Thermo air, int* ibound,
                             double* geofa, double* uFS, double* uGBot, double* uGTop, double* uGLeft, double* uGRight,
                             State* BotVar, State* TopVar, State* LeftVar, State* RightVar){
     double unkelij[NVAR];
@@ -100,7 +100,7 @@ void generate_ghost_cells(int nx, int ny, double* unk, double* ux, double* uy, S
     }
 }
 
-void viscous(int nx, double normy, double normx, double* uLeft, State& varL, double* uRight, State varR, double* dc, double* visc_contrib){
+void viscous(int nx, double normy, double normx, const double* uLeft, State& varL, const double* uRight, State varR, double* dc, double* visc_contrib){
 
     // ~~~~~~~~~~ Viscous fluxes ~~~~~~~~~~
     ///Need to make axisymmatric modification and add extra termsnn/JE
@@ -157,7 +157,7 @@ void viscous(int nx, double normy, double normx, double* uLeft, State& varL, dou
 }
 
 int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int* bids, int nx, int ny, Thermo& air, State* ElemVar, double *uFS, int* ibound, double* geoel,
-               double* geofa, double* yfa, double* xfa, double* unk, double* ux, double* uy, double* dudt, double* duxdt, double* duydt) {
+               double* geofa, double* yfa, double* xfa, const double* unk, double* ux, double* uy, double* dudt, double* duxdt, double* duydt) {
     int nelem = (nx-1)*(ny-1);
     double *rhsel, *rhselx = nullptr, *rhsely = nullptr, parr;
     rhsel  = (double*)malloc(NVAR*nelem*sizeof(double));
@@ -219,7 +219,7 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
 
 
     for (int iblk=0; iblk<world_size; iblk++) {
-        if (world_size==1) continue;
+        if (world_size==1) break;
         // Loop through all the blocks
         int iblk2; //tranfer target
         double* usend;
@@ -483,12 +483,14 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
     //==========Fully Interior Faces
 
 
+    if(DEBUG) {printf("::%3d::Evaluating Xi Fluxes..... \n", bnum);fflush(stdout);}
     // I|xi Fluxes
     for (int i=1; i<nx-1; i++){
         for (int j=0; j<ny-1; j++){
             // ~~~~~~~~~~ Inviscid fluxes ~~~~~~~~~~
             //face above point i,j
-            double len, fNormal[2], fflux[NVAR], rFace, *uLeft, *uRight, yCenter[2];
+            double len, fNormal[2], fflux[NVAR], rFace, yCenter[2];
+	    const double  *uLeft, *uRight;
             State varL = State();
             State varR = State();
             len = geofa[IJK(i,j,3,nx,6)];
@@ -558,11 +560,13 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
     }
 
 
+    if(DEBUG) {printf("::%3d::Evaluating Eta Fluxes..... \n", bnum);fflush(stdout);}
     // J|eta fluxes
     for (int i=0; i<nx-1; i++){
         for (int j=1; j<ny-1; j++){
             //faces to the left/above point i,j
-            double len, fNormal[2], fflux[NVAR], rFace, *uLeft, *uRight, yCenter[2];
+            double len, fNormal[2], fflux[NVAR], rFace, yCenter[2];
+	    const double *uLeft, *uRight;
             State varL = State();
             State varR = State();
             len = geofa[IJK(i,j,0,nx,6)];
@@ -640,12 +644,15 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
 
 
     //========== Boundary faces ==========
+    if(DEBUG) {printf("::%3d::Evaluating Boundary Fluxes..... \n", bnum);fflush(stdout);}
 
-    double len, normx, normy, fflux[NVAR], yface, *uRight, *uLeft;
+    double len, normx, normy, fflux[NVAR], yface;
+    const double *uRight, *uLeft;
     State varL = State();
     State varR = State();
 
     // I|xi fluxes
+    if(DEBUG) {printf("::%3d::Boundary-xi..... \n", bnum);fflush(stdout);}
     for (int j=0; j<ny-1; j++){
         //--------------------  LEFT BOUNDARY
         len   = geofa[IJK(0, j, 3, nx, 6)];
@@ -802,6 +809,7 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
     }
 
 
+    if(DEBUG) {printf("::%3d::Boundary-eta..... \n", bnum);fflush(stdout);}
     // J|eta fluxes
     for (int i=0; i<nx-1; i++) {
         //BOTTOM BOUNDARY
@@ -982,6 +990,7 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
 
         }
 
+    if(DEBUG) {printf("::%3d::Combining Flux Evaluations to find dudt..... \n", bnum);fflush(stdout);}
     //====================Combine to Find du/dt====================
     for (int i=0; i<nx-1; i++){
         for (int j=0; j<ny-1; j++){
@@ -992,8 +1001,6 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
             dudt[iu+2] = rhsel[iu+2] / vol;
             dudt[iu+3] = rhsel[iu+3] / vol;
 
-            //printf("(i,j,) rhx,x,y: (%2d,%2d) %f,%f,%f\n",
-            //       i,j,rhsel[iu],rhselx[iu],rhsely[iu]);
 
             if (accur==1) {
                 duxdt[iu]     = 3.0 * rhselx[iu]     / vol;
@@ -1019,24 +1026,6 @@ int calc_dudt(int ivisc, int accur, int iaxi, double mxangle, int* bbounds, int*
         // SINCE M IS DIAGONAL MATRIX, THE BELOW ALREADY INCLUDES THE MULTIPLE 3/VOL FROM ITS INVERSION
         DGP1_volume_integral(nx, ny, iaxi, 1.0, xfa, yfa, geoel, unk, ElemVar, duxdt, duydt);
     }
-
-    for (int i=0; i<nx-1; i++) {
-        for (int j = 0; j < ny - 1; j++) {
-            int iu = IJK(i, j, 0, nx - 1, NVAR);
-            double vol = geoel[IJK(i, j, 0, nx - 1, 3)];
-
-            //printf("(i,j,) dudt:dx,dy: (%2d,%2d) %f,%f\n",
-            //       i, j, duxdt[iu], duydt[iu]);
-        }
-    }
-
-    /*
-    for (int iu=0; iu<nelem*NVAR ; iu++){
-        if (dudt[iu] > 1e-6){
-            printf("%le\n",dudt[iu]);
-        }
-    }
-     */
 
     free(rhsel);
     if (accur==1) {

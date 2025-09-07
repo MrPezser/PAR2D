@@ -21,7 +21,7 @@
 class State {
 
 private:
-    double* unk{};
+    const double* unk{};
 
 
 public:
@@ -30,15 +30,14 @@ public:
 
     State() = default;
 
-    void Initialize(double* u){
+    void Initialize(const double* u){
         unk = u;
         // vars = [rho, u, v, T]
     }
 
     void UpdateState(Thermo& air ) {
         int isp = 0;
-        unk[3] = fmax(unk[3], 201.0);
-        double T = unk[3];
+        double T = fmax(unk[3], 201.0);
         
         rho = 0.0;
         for (int isp=0; isp<NSP; isp++){

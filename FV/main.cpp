@@ -10,6 +10,7 @@
 // External Libraries
 #include <mpi.h>
 #include <petscts.h>
+#include <petscsys.h>
 
 // Project Headers
 #include "FileIO.h"
@@ -22,14 +23,19 @@
 #include "Thermo.h"
 
   // List of context needed: air,nx,ny,CFL,Elemvar, geofa
+  //                         ivisc, accur, iaxi, 
+  //                         ux(tmp nullptr), uy(same), resx(same), resy(same)
+  //                         bbounds, bids, ibound, mxangle
+  //                         uFS, geoel, geofa, yfa, xfa, unk,
 typedef struct {
     Thermo          air;
-    PetscInt        nx;
-    PetscInt        ny;     //////   	MAY HAVE ISSUES WITH CONVERSION TO REGULAR INT  
-    PetscScalar     CFL;
-    *State          ElemVar;
-    *double         geofa;
-} AppCtx	
+    PetscInt        nx, ny, ivisc, accur, iaxi;
+    PetscInt       *bbounds, *bids, *ibound;
+    PetscScalar     CFL, mxangle;
+    PetscScalar    *uFS, *geoel, *geofa, *yfa, *xfa, *unk;
+    State          *ElemVar;
+    double	    *ux,*uy,*resx,*resy;
+} AppCtx ;	
 
 
 double find_dt(Thermo& air, int nx, int ny, double CFL, const double* uRef, State& var, double* geofa){
@@ -43,12 +49,15 @@ double find_dt(Thermo& air, int nx, int ny, double CFL, const double* uRef, Stat
     for (int i=0; i<nx-1; i++){
         for (int j=0; j<ny-1; j++){
             mindx = fmin(mindx, geofa[IJK(i,j,0,nx,6)]);
+//            printf("geofa_i%d_j%d_0 = %e\n", i,j,geofa[IJK(i,j,0,nx,6)]);
             mindx = fmin(mindx, geofa[IJK(i,j,3,nx,6)]);
+//            printf("geofa_i%d_j%d_3 = %e\n", i,j,geofa[IJK(i,j,3,nx,6)]);
         }
     }
 
     dt = CFL * mindx / vmax;
-    ASSERT(!__isnan(dt), "NAN dt")
+    ASSERT(!__isnan(dt), "NAN dt");
+//    printf("CFL,mindx,dt = %e,%e,%e\n", CFL,mindx,dt);
     return dt;
 }
 
@@ -74,67 +83,95 @@ void calculate_residual(int nx, int ny, double* res, double* ressum){
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
+PetscErrorCode MonitorRHSNorm(TS ts, PetscInt step, PetscReal time, Vec U, void *ctx){
+    Vec            RHS;
+    PetscReal      rhs_norm;
+    PetscReal      solution_norm;
+    PetscErrorCode ierr;
+    //
+    PetscFunctionBeginUser;
+    //
+    PetscCall(VecDuplicate(U, &RHS));
+    //
+    PetscCall(TSComputeRHSFunction(ts, time, U, RHS));
+    // 
+    // Compute the 2-norm of the RHS vector
+    PetscCall(VecNorm(RHS, NORM_2, &rhs_norm));
+    //
+    // Print the data to the console
+    PetscCall(PetscPrintf(PETSC_COMM_WORLD,
+             "step %d, time %e, ||RHS||=%e\n",
+             step, (double)time, (double)rhs_norm));
+    //
+    PetscCall(VecDestroy(&RHS));
+    PetscFunctionReturn(PETSC_SUCCESS);
+}
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
 PetscErrorCode pre_step_routine(TS ts) {
-  AppCtx            *app_ctx;
-  Vec               U;
-  PetscReal         dt, norm;
-  MPI_Comm          comm;
-  //
-  PetscFunctionBeginUser;
-  comm = PETSC_COMM_WORLD;
-  //
-  int world_size,bnum;
-  double dt, dt_glob;
-  //
-  PetscCallMPI(MPI_Comm_size(comm, &world_size));
-  PetscCallMPI(MPI_Comm_rank(comm, &bnum));
-  //
-  PetscCall(TSGetApplicationContext(ts, &app_ctx));
-  //
-  // List of context needed: air,nx,ny,CFL,Elemvar, geofa
-  //Get needed values from ts context
-  PetscCall(TSGetTimeStep(ts, &dt));
-  PetscCall(TSGetSolution(ts, &U));
-  // get local solution vector
-  PetscCall(VecGetArray(U, &unk));
-  //
-  // ==========================================================================
-  // Compute Timestep
-  // 
-  // Find global timestep based off of CFl condition
-  dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny ,app_ctx->CFL, 
-	       unk,          app_ctx->ElemVar[0],     app_ctx->geofa);
-  if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
-  // 
-  // Get the smalest dt out of all processes
-  PetscCall(MPI_Allreduce(&dt,&dt_glob, 1, MPI_DOUBLE, MPI_MIN, comm));
-  PetscCall(TSSetTimeStep(ts, dt_glob));
-  if(DEBUG) {printf("::%3d::Communicated Timestep..... \n", bnum);}
-  //
-  // ==========================================================================
-  //
-  // Cleanup, cleanup, everybody everywhere....
-  PetscCall(VecRestoreArray(U, &unk));
-  PetscFunctionReturn(PETSC_SUCCESS);
-  //
+    AppCtx            *app_ctx;
+    Vec               U;
+    PetscReal         dt, dt_glob, norm;
+    PetscScalar       *unk;
+    MPI_Comm          comm;
+    //
+    PetscFunctionBeginUser;
+    comm = PETSC_COMM_WORLD;
+    //
+    int world_size,bnum;
+    //
+    PetscCallMPI(MPI_Comm_size(comm, &world_size));
+    PetscCallMPI(MPI_Comm_rank(comm, &bnum));
+    //
+    PetscCall(TSGetApplicationContext(ts, &app_ctx));
+    //
+    // List of context needed: air,nx,ny,CFL,Elemvar, geofa
+    //Get needed values from ts context
+    PetscCall(TSGetTimeStep(ts, &dt));
+    PetscCall(TSGetSolution(ts, &U));
+    // get local solution vector
+    PetscCall(VecGetArray(U, &unk));
+    //
+    // ==========================================================================
+    // Compute Timestep
+    // 
+    // Find global timestep based off of CFl condition
+    dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny ,app_ctx->CFL, 
+                 unk,          app_ctx->ElemVar[0],     app_ctx->geofa);
+    if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
+    // 
+    // Get the smalest dt out of all processes
+    PetscCall(MPI_Allreduce(&dt,&dt_glob, 1, MPI_DOUBLE, MPI_MIN, comm));
+    PetscCall(TSSetTimeStep(ts, dt_glob));
+    if(DEBUG) {printf("::%3d::Communicated Timestep..... \n", bnum);}
+    //
+    // ==========================================================================
+    //
+    // Cleanup, cleanup, everybody everywhere....
+    PetscCall(VecRestoreArray(U, &unk));
+    PetscFunctionReturn(PETSC_SUCCESS);
+    //
 }
 //
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
 //
-PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
+PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec U, Vec Fv, void *ctx) {
     // INPUS
     //       ts  :: timestepping context struct
     //       t   :: solution time
     //       u   :: solution vector (global)
     //       F   :: RHS vector (global)
     //       ctx :: user specified context (big boy)
-    Vec               Fu
+    Vec               Fu;
     PetscScalar       dt, norm;
-    PetscScalar       *unk, *res, *dv;
+    PetscScalar       *dv, *res;
+    const PetscScalar *unk;
     PetscInt          world_size,bnum;
     MPI_Comm          comm;
+    AppCtx *ac = (AppCtx*)ctx;
     //
     PetscFunctionBeginUser;
     comm = PETSC_COMM_WORLD;
@@ -145,15 +182,11 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
     PetscCallMPI(MPI_Comm_rank(comm, &bnum));
     //
     PetscCall(TSGetApplicationContext(ts, &ac));
-    // Need for AppCtx: ivisc, accur, iaxi, mxangle, bbounds, bids, nx, ny, air, elemvar
-    //                  uFSm ibound, geoel, geofa, yfa, xfa, unk,
-    //                  ux(tmp nullptr), uy(same), resx(same), resy(same)
-    //
     PetscCall(VecDuplicate(Fv,&Fu));
     //
     // Step1 calculate dudt
     //.... Separate out input (unk), and output (res)   
-    PetscCall(VecGetArray(U,  &unk));
+    PetscCall(VecGetArrayRead(U,  &unk));
     PetscCall(VecGetArray(Fu, &res));
     PetscCall(VecGetArray(Fv, &dv ));
     //
@@ -163,7 +196,7 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
 	      /**/unk,   ac->ux,     ac->uy,    /**/res,     ac->resx, ac->resy);
     if(DEBUG) {printf("::%3d::Calculated dudt..... \n", bnum);}
     //calculate the right hand side residual term (change of conserved quantities)
-    calculate_residual(nx, ny, res, ressum);
+//    calculate_residual(ac->nx, ac->ny, res, &ressum);
     /*
         if ( accur == 1 ) {
             calculate_residual(nx, ny, resx, ressumx);
@@ -181,15 +214,15 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
     //
     for (int i=0; i<(ac->nx-1); i++) {
         for (int j=0; j<(ac->ny-1); j++) {
-            double *unkij = &(unk[IJK(i, j, 0, nx-1, NVAR)]);
+            const double *unkij = &(unk[IJK(i, j, 0, ac->nx-1, NVAR)]);
             double LUtol = 1e-16;
-            int iel = IJ(i,j,nx-1);
+            int iel = IJ(i,j,ac->nx-1);
             int N = NVAR;
             int P[NVAR+1]{}; //permutation vector for pivoting
 
             //get the rhs block needed
-            double *b = &(res[IJK(i, j, 0, nx - 1, NVAR)]);
-            double *xLU = &(dv[ IJK(i, j, 0, nx - 1, NVAR)]);
+            double *b = &(res[IJK(i, j, 0, ac->nx - 1, NVAR)]);
+            double *xLU = &(dv[ IJK(i, j, 0, ac->nx - 1, NVAR)]);
 
             //Evaluate the jacobian / Implicit matrix
             BuildJacobian(1.0, unkij, ac->ElemVar[iel], D);
@@ -198,8 +231,8 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
 
             //axi modification
             double ycc = 1.0;
-            if (iaxi==1) {
-                ycc = ac->geoel[IJK(i, j, 2, nx - 1, 3)];
+            if (ac->iaxi==1) {
+                ycc = ac->geoel[IJK(i, j, 2, ac->nx - 1, 3)];
                 for (int k = 0; k < NVAR; k++) {
                     xLU[k] *= (1.0 / ycc);
                 }
@@ -269,34 +302,68 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec u, Vec Fv, void *ac) {
     //
     //
     // 
-    PetscCall(VecRestoreArray(U, &unk));
+    PetscCall(VecRestoreArrayRead(U, &unk));
     PetscCall(VecRestoreArray(Fu, &res));
     PetscCall(VecRestoreArray(Fv, &dv ));
     PetscCall(VecDestroy(&Fu));
-    PetscFunctionreturn(PETSC_SUCCESS);
+    PetscFunctionReturn(PETSC_SUCCESS);
 } // calc_rhs
 //
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
 //
-int solve_with_petsc(int argc, char **argv,
-	             int mxiter. int nelem) {
+int solve_with_petsc(
+	             int mxiter, int nelem,
+		     Thermo air,
+		     State *ElemVar,
+		     int nx, int ny, int ivisc, int accur, int iaxi,
+		     int *bbounds, int *bids, int *ibound,
+		     double CFL, double mxangle,
+                     double *uFS, double *unk, double *ux, double *uy,
+		     double *resx, double *resy,
+		     double *geoel, double *geofa, double *xfa, double *yfa
+		     ) {
     // Input param
     PetscInt n_solvec_local = nelem*NVAR;
     PetscInt n_solvec_globl; //Will be calculated later
     // Function Local Stuff
     TS       ts; // Time Stepping context
-    TSAdapt  adapt; //Adaptive timestep context
     Vec      U;
     MPI_Comm comm;
     AppCtx   app_ctx;
     PetscScalar *petsc_array;
     
     // Load Information onto Application Context
-    app_ctx -> geofa = geofa;
-    app_ctx -> geoel = geoel;
+    // Thermo
+    app_ctx.air   = air;
+    // State Pointer
+    app_ctx.ElemVar = ElemVar;
+    // Integer.
+    app_ctx.nx    = nx;
+    app_ctx.ny    = ny;
+    app_ctx.ivisc = ivisc;
+    app_ctx.accur = accur;
+    app_ctx.iaxi  = iaxi;
+    // Integer Pointers
+    app_ctx.bbounds = bbounds;
+    app_ctx.bids    = bids;
+    app_ctx.ibound  = ibound;
+    // Real Number
+    app_ctx.CFL     = CFL;
+    app_ctx.mxangle = mxangle;
+    // Real Number Pointers
+    app_ctx.uFS   = uFS;
+    app_ctx.geoel = geoel;
+    app_ctx.geofa = geofa;
+    app_ctx.yfa   = yfa;
+    app_ctx.xfa   = xfa;
+    app_ctx.unk   = unk;
     //.... and so on
+    app_ctx.ux   = ux;
+    app_ctx.uy   = uy;
+    app_ctx.resx = resx;
+    app_ctx.resy = resy;
 
     // Initial Stuff
     comm = PETSC_COMM_WORLD;
@@ -306,13 +373,16 @@ int solve_with_petsc(int argc, char **argv,
     
     //  Initialize Solution Vector
     //....  Get total vector length
-    MPI_Allreduce(&n_solvec_local, &n_solvec_global, 1, MPI_INT, MPI_SUM, comm);
+    MPI_Allreduce(&n_solvec_local, &n_solvec_globl, 1, MPI_INT, MPI_SUM, comm);
     //....  Create global vector
     PetscCall(VecCreateMPI(comm, n_solvec_local, n_solvec_globl, &U));
     //....  Copy in the current process's portion of vector
     PetscCall(VecGetArray(U, &petsc_array));
     PetscCall(PetscMemcpy(petsc_array, unk, n_solvec_local*sizeof(PetscScalar)));
     PetscCall(VecRestoreArray(U, &petsc_array));
+    // Debug printout
+    //PetscPrintf(PETSC_COMM_WORLD, "========== Initial Solution Vector\n");
+    //VecView(U, PETSC_VIEWER_STDOUT_WORLD);
     //....  Hand off to TS object
     PetscCall(TSSetSolution(ts, U));
     
@@ -323,21 +393,25 @@ int solve_with_petsc(int argc, char **argv,
     TSSetMaxSteps(ts, mxiter); 		// Maximum number of time steps
 
     // Set Up Function evaluation Stuff
-    PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, app_ctx);
-    TSSetPreStep(ts, pre_step_routine); // Function called at the beginning of each time step
+    PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, &app_ctx));
+    PetscCall(TSSetPreStep(ts, pre_step_routine)); // Function called at the beginning of each time step
+    PetscCall(TSMonitorSet(ts, MonitorRHSNorm, NULL, NULL));
 					// It's used to calculate the timestep based on a CFl condition
     //TSSetPostStage(ts, .....) 		// Function called after each stage (can be used for filtering)
     //
     PetscCall(TSSetFromOptions(ts));
-    PetscCall(TSMonitorSet(ts, TSMonitorStdio, NULL, NULL));
     //
     PetscCall(TSSolve(ts, U));
     //
-    PetscCall(TSDestroy(ts));
-    PetscCall(VecDestroy(U));
+    PetscCall(VecGetArray(U,&petsc_array));
+    PetscCall(PetscMemcpy(unk, petsc_array, n_solvec_local*sizeof(PetscScalar)));
+    PetscCall(VecRestoreArray(U,&petsc_array));
+    //
+    PetscCall(TSDestroy(&ts));
+    PetscCall(VecDestroy(&U));
     //
     return 0;
-}
+} // solve_with_petsc
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
@@ -351,7 +425,7 @@ int main(int argc, char **argv) {
     double *geoel, *geofa, *yfa, *xfa, *x, *y;
     // ========== Solution Variables	
     //Vec     unk_gl, res_gl, dv_gl; // Global
-    double *unk, *res, *dv;
+    //double *unk, *res, *dv;
     double *ux = nullptr, *uy = nullptr, *resx=nullptr, *resy=nullptr,  
 	   *dvx=nullptr,  *dvy=nullptr;
 
@@ -524,20 +598,10 @@ int main(int argc, char **argv) {
     //==========  Setup Solution Variables  ===================================
     //=========================================================================
     //
-    // Allocate Vectors with PETSc
-    int n_solvec_local = NVAR*nelem;
-    //int n_solvec_globl = NVAR*ncell_glob;
-    // Global
-    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &unk_gl));
-    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &res_gl));
-    //PetscCall(VecCreateMPI(PETSC_COMM_WORLD, n_solvec_local, n_solvec_globl, &dv_gl));
     // Local
     auto* unk  = (double*)malloc(NVAR*nelem*sizeof(double));
     auto* res  = (double*)malloc(NVAR*nelem*sizeof(double));
     auto* dv   = (double*)malloc(NVAR*nelem*sizeof(double));
-    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &unk);
-    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &res);
-    //PetscCall(VecCreateSeq(PETSC_COMM_SELF, n_solvec_local, &dv);
     //
     if (accur == 1) {
         printf("PETSc suport of higher order hasn't been implimented yet.\n"); exit(1);
@@ -593,7 +657,7 @@ int main(int argc, char **argv) {
     }
 
     //Find timestep based off of CFL limit for initial condition (dt = CFL dx / c )
-    double dt;
+    //double dt;
     State* ElemVar;//
     ElemVar = (State*)malloc(nelem*sizeof(State));// [nelem];
     //Set up structures for calculating/containing non-state variables on each element
@@ -629,9 +693,42 @@ int main(int argc, char **argv) {
 
     PetscBarrier(PETSC_NULLPTR);
     if (bnum==0) printf("==================== Starting Solver ====================\n");
+   solve_with_petsc(mxiter,nelem,air,ElemVar,nx,ny,ivisc,accur,iaxi,
+		    bbounds,bids,ibound,CFL,mxangle,uFS,unk,nullptr,nullptr,nullptr,
+		    nullptr,geoel,geofa,xfa,yfa); 
+
+    PetscBarrier(PETSC_NULLPTR);
+    sleep(1);
+    if (bnum==0) {
+        printf("==================== Calculation Finished ====================\n");
+    }
+    printf("::%3d:: Saving Solution File..... \n",bnum);
+
+    if (accur==1){
+        print_state_DGP1(time,9999,bnum,"Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
+    } else {
+        print_state(9999,bnum,"Final State", nx, ny, air, x, y, unk, geoel);
+    }
+    //print_state_axi("Final State", nx, ny, air, x, y, unk, geoel);
+
+    free(ElemVar);
+    free(unk);
+    free(ux);
+    free(uy);
+    free(res);
+    free(resx);
+    free(resy);
+    free(dv);
+    printf("%3d Complete.\n",bnum);
+    //MPI_Finalize();
+    PetscCall(PetscFinalize());
+}
 
 
-    double res0[NVAR]{};
+/*
+ *
+ *
+ double res0[NVAR]{};
     double ressum[NVAR], ressumx[NVAR], ressumy[NVAR], restotal;
     int iter;
     for (iter=0; iter<mxiter; iter++){
@@ -840,25 +937,25 @@ int main(int argc, char **argv) {
 
             }
         }
-        /*
-        if (accur ==1){
-            for (int i=0; i<NVAR; i++) {
-                ressum[i] += ressumx[i] + ressumy[i];
-            }
-        }
-
-        if (iter==0) {
-            for (int i=0; i<NVAR; i++){
-                res0[i] = ressum[i];
-            }
-        }
-        restotal = 0.0;
-        for (int i=0; i<NVAR; i++){
-            ASSERT(ressum[i] >= 0.0 && !__isnan(ressum[i]), "Invalid Residual")
-            if (res0[i] < 1e-16) res0[i] = fmax(ressum[i], 1e-16);
-            restotal += ressum[i] / res0[i];
-        }
-        */
+    //    
+    //    if (accur ==1){
+    //        for (int i=0; i<NVAR; i++) {
+    //            ressum[i] += ressumx[i] + ressumy[i];
+    //        }
+    //    }
+    //
+    //    if (iter==0) {
+    //       for (int i=0; i<NVAR; i++){
+    //            res0[i] = ressum[i];
+    //        }
+    //    }
+    //    restotal = 0.0;
+    //    for (int i=0; i<NVAR; i++){
+    //        ASSERT(ressum[i] >= 0.0 && !__isnan(ressum[i]), "Invalid Residual")
+    //        if (res0[i] < 1e-16) res0[i] = fmax(ressum[i], 1e-16);
+    //        restotal += ressum[i] / res0[i];
+    //    }
+    //    
         if (iter > 0 and iter % saveiter == 0) {
             //printf("Saving current Solution\n");
             if (accur == 1) {
@@ -912,30 +1009,7 @@ int main(int argc, char **argv) {
             }
         }
     }
-
-    PetscBarrier(PETSC_NULLPTR);
-    sleep(1);
-    if (bnum==0) {
-        printf("==================== Calculation Finished ====================\n");
-    }
-    printf("::%3d:: Saving Solution File..... \n",bnum);
-
-    if (accur==1){
-        print_state_DGP1(time,iter,bnum,"Final State", nx, ny, air, x, y, unk, ux, uy, geoel);
-    } else {
-        print_state(iter,bnum,"Final State", nx, ny, air, x, y, unk, geoel);
-    }
-    //print_state_axi("Final State", nx, ny, air, x, y, unk, geoel);
-
-    free(ElemVar);
-    free(unk);
-    free(ux);
-    free(uy);
-    free(res);
-    free(resx);
-    free(resy);
-    free(dv);
-    printf("%3d Complete.\n",bnum);
-    //MPI_Finalize();
-    PetscCall(PetscFinalize());
-}
+ *
+ *
+ *
+ */

@@ -1,3 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 
-mpirun -n 1 /home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV < cone.in |& tee out.log
+exec=/home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV
+
+#opts='-ts_monitor -info -options_view -check_pointer_intensity 0 -view_initial_residual -on_error_attach_debugger'
+
+opts='-options_view -check_pointer_intensity 0 -on_error_attach_debugger
+      -ts_view -snes_monitor_residual'
+
+
+mpirun -n 1 $exec $opts < cone.in |& tee out.log
