@@ -105,7 +105,7 @@ PetscErrorCode MonitorRHSNorm(TS ts, PetscInt step, PetscReal time, Vec U, void 
     //
     PetscCall(VecDestroy(&RHS));
     PetscFunctionReturn(PETSC_SUCCESS);
-}
+} // monitorRHSNorm
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
@@ -137,7 +137,13 @@ PetscErrorCode pre_step_routine(TS ts) {
     // Compute Timestep
     // 
     // Find global timestep based off of CFl condition
-    dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny ,app_ctx->CFL, 
+    double CFL_eff = app_ctx->CFL;
+    double solvetime;
+    TSGetTime(ts, &solvetime);
+    //
+    //if (solvetime < 1.0e-4) {CFL_eff *= 0.02;}
+    //
+    dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny , CFL_eff, 
                  unk,          app_ctx->ElemVar[0],     app_ctx->geofa);
     if(DEBUG) {printf("::%3d::Calculated Timestep..... \n", bnum);}
     // 
@@ -152,7 +158,7 @@ PetscErrorCode pre_step_routine(TS ts) {
     PetscCall(VecRestoreArray(U, &unk));
     PetscFunctionReturn(PETSC_SUCCESS);
     //
-}
+} // pre_step_routin
 //
 // ======================================================================================
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
@@ -319,6 +325,28 @@ PetscErrorCode calc_rhs(TS ts, PetscReal t, Vec U, Vec Fv, void *ctx) {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
 // ======================================================================================
 //
+PetscErrorCode calc_rhs_implicit(TS ts, PetscReal t, Vec U, Vec Udot, Vec Fv, void *ctx) {
+    // INPUS
+    //       ts  :: timestepping context struct
+    //       t   :: solution time
+    //       u   :: solution vector (global)
+    //       F   :: RHS vector (global)
+    //       ctx :: user specified context (big boy)
+    //
+    PetscFunctionBeginUser;
+    //
+    calc_rhs(ts, t, U, Fv, ctx);
+    //
+    VecScale(Fv, -1.0);
+    PetscCall(VecAXPY(Fv, 1.0, Udot)); // OUT = Udot - F(t,U)
+    // 
+    PetscFunctionReturn(PETSC_SUCCESS);
+} // calc_rhs_implicit
+//
+// ======================================================================================
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~==========
+// ======================================================================================
+//
 int solve_with_petsc(
 	             int mxiter, int nelem,
 		     Thermo air,
@@ -393,13 +421,15 @@ int solve_with_petsc(
     PetscCall(TSSetSolution(ts, U));
     
     // Time Stepping Method Setup
-    TSSetType(ts, TSEULER); 		// Time Stepping Method
+    TSSetType(ts, TSBEULER); 		// Time Stepping Method
     TSSetTime(ts, 0.0);     		// Initial Time
     TSSetTimeStep(ts,1.0);  		// Initial timestep (overwritten in prestep)
     TSSetMaxSteps(ts, mxiter); 		// Maximum number of time steps
 
     // Set Up Function evaluation Stuff
     PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, &app_ctx));
+    //PetscCall(TSSetIFunction(ts, NULL, calc_rhs_implicit, &app_ctx));
+    //PetscCall(TSSetIJacobian(ts, NULL, NULL, NULL, NULL));
     PetscCall(TSSetPreStep(ts, pre_step_routine)); // Function called at the beginning of each time step
     PetscCall(TSMonitorSet(ts, MonitorRHSNorm, NULL, NULL));
 					// It's used to calculate the timestep based on a CFl condition
@@ -549,6 +579,7 @@ int main(int argc, char **argv) {
     int bbounds[4];
     int bids[4]; // bottom, right, top left
     for (int iblk=0; iblk<world_size; iblk++) {
+	if (DEBUG) {printf("::%3d:: grid loop\n", bnum);}
         if (iblk == bnum) {
             printf("::%3d:: opening mesh file \n", bnum);
             read_mesh(bnum, &nx, &ny, &ibound, &x, &y);
@@ -580,7 +611,7 @@ int main(int argc, char **argv) {
             //bids[3]--;
             fclose(fconn);
         }
-	PetscBarrier(PETSC_NULLPTR);
+	MPI_Barrier(PETSC_COMM_WORLD);
     }
 
     // Calculate nums based off of grid file
@@ -594,11 +625,11 @@ int main(int argc, char **argv) {
             printf("::%3d::Calculating Grid Metrics..... \n", bnum);
             calc_geoel_geofa(nx, ny, x, y, &geoel, &geofa, &yfa, &xfa);
         }
-        PetscBarrier(PETSC_NULLPTR);
+        MPI_Barrier(PETSC_COMM_WORLD);
     }
     //
     //
-    PetscBarrier(PETSC_NULLPTR);
+    MPI_Barrier(PETSC_COMM_WORLD);
     if (bnum==0) printf("==================== Initializing ====================\n");
     //=========================================================================
     //==========  Setup Solution Variables  ===================================
@@ -610,7 +641,7 @@ int main(int argc, char **argv) {
     auto* dv   = (double*)malloc(NVAR*nelem*sizeof(double));
     //
     if (accur == 1) {
-        printf("PETSc suport of higher order hasn't been implimented yet.\n"); exit(1);
+        printf("PETSc suport of PAR2D higher order hasn't been implimented yet.\n"); exit(1);
         ux = (double *) malloc(NVAR * nelem * sizeof(double));    //xi  derivative
         uy = (double *) malloc(NVAR * nelem * sizeof(double));    //eta derivative
         resx = (double*)malloc(NVAR*nelem*sizeof(double));
@@ -653,7 +684,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    PetscBarrier(PETSC_NULLPTR);
+    MPI_Barrier(PETSC_COMM_WORLD);
     if (bnum==0) printf("===== Generating Mesh and Initial State Tecplot Files ====\n");
     print_elem_stats("MeshVolumeStats", nx, ny, geoel);
     if (accur==1){
@@ -697,13 +728,13 @@ int main(int argc, char **argv) {
         }
     }
 
-    PetscBarrier(PETSC_NULLPTR);
+    MPI_Barrier(PETSC_COMM_WORLD);
     if (bnum==0) printf("==================== Starting Solver ====================\n");
    solve_with_petsc(mxiter,nelem,air,ElemVar,nx,ny,ivisc,accur,iaxi,
 		    bbounds,bids,ibound,CFL,mxangle,uFS,unk,nullptr,nullptr,nullptr,
 		    nullptr,geoel,geofa,xfa,yfa); 
 
-    PetscBarrier(PETSC_NULLPTR);
+    MPI_Barrier(PETSC_COMM_WORLD);
     sleep(1);
     if (bnum==0) {
         printf("==================== Calculation Finished ====================\n");

@@ -1,3 +1,25 @@
-#!/bin/sh
-mkdir -p ./Outputs
-mpirun -n 8 -s all /home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV < test.in |& tee out.log
+#!/bin/bash
+
+exec=/home/mpiusr/hyades_nfs/PAR2D/FV/cmake-build/MPI2DFV
+
+#opts='-ts_monitor -info -options_view -check_pointer_intensity 0 -view_initial_residual -on_error_attach_debugger'
+
+opts_exp='-options_view -check_pointer_intensity 0 -on_error_attach_debugger
+      -ts_view -snes_monitor_residual
+      -ts_type rk 3 -ts_max_time 1.0e-3
+      -log_view'
+
+opts_imp='-options_view -check_pointer_intensity 0 -on_error_attach_debugger
+          -ts_view -ts_type cn -ts_max_time 1.0e-5
+	  -ksp_type fgmres -pc_type ksp -ksp_ksp_type bcgs -ksp_pc_type ilu
+	  -ksp_rtol 0.1
+	  -snes_rtol 0.0001
+	  -snes_mf -snes_monitor_cancel
+	  -snes_type newtonls -ts_max_snes_failures 20
+	  -snes_qn_type lbfgs
+	  -snes_linesearch_type l2
+	  -log_view
+	  '
+	  #-npc_snes_type qn
+
+mpirun -s all -n 8 $exec $opts_exp < test.in |& tee out.log
