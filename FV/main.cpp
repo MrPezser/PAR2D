@@ -141,7 +141,8 @@ PetscErrorCode pre_step_routine(TS ts) {
     double solvetime;
     TSGetTime(ts, &solvetime);
     //
-    //if (solvetime < 1.0e-4) {CFL_eff *= 0.02;}
+    if (solvetime < 1.0e-4) {CFL_eff *= 0.1;}
+    if (solvetime < 1.0e-3) {CFL_eff *= 0.1;}
     //
     dt = find_dt(app_ctx->air, app_ctx->nx, app_ctx->ny , CFL_eff, 
                  unk,          app_ctx->ElemVar[0],     app_ctx->geofa);
@@ -427,9 +428,9 @@ int solve_with_petsc(
     TSSetMaxSteps(ts, mxiter); 		// Maximum number of time steps
 
     // Set Up Function evaluation Stuff
-    PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, &app_ctx));
-    //PetscCall(TSSetIFunction(ts, NULL, calc_rhs_implicit, &app_ctx));
-    //PetscCall(TSSetIJacobian(ts, NULL, NULL, NULL, NULL));
+    //PetscCall(TSSetRHSFunction(ts, NULL, calc_rhs, &app_ctx));
+    PetscCall(TSSetIFunction(ts, NULL, calc_rhs_implicit, &app_ctx));
+    PetscCall(TSSetIJacobian(ts, NULL, NULL, NULL, NULL));
     PetscCall(TSSetPreStep(ts, pre_step_routine)); // Function called at the beginning of each time step
     PetscCall(TSMonitorSet(ts, MonitorRHSNorm, NULL, NULL));
 					// It's used to calculate the timestep based on a CFl condition

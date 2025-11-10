@@ -10,16 +10,17 @@ opts_exp='-options_view -check_pointer_intensity 0 -on_error_attach_debugger
       -log_view'
 
 opts_imp='-options_view -check_pointer_intensity 0 -on_error_attach_debugger
-          -ts_view -ts_type cn -ts_max_time 1.0e-5
-	  -ksp_type fgmres -pc_type ksp -ksp_ksp_type bcgs -ksp_pc_type ilu
-	  -ksp_rtol 0.1
+          -ts_view -ts_type beuler -ts_max_time 1.0e-2
+	  -ksp_type gmres -ksp_gmres_restart 20 -pc_type ilu
+	  -ksp_rtol 0.01 -ksp_monitor_cancel
 	  -snes_rtol 0.0001
-	  -snes_mf -snes_monitor_cancel
-	  -snes_type newtonls -ts_max_snes_failures 20
-	  -snes_qn_type lbfgs
-	  -snes_linesearch_type l2
+	  -snes_mf -snes_monitor_cancel 
+	  -snes_type newtonls -ts_max_snes_failures 30
+	  -snes_linesearch_type bisection
 	  -log_view
 	  '
 	  #-npc_snes_type qn
+	  #-ksp_type fgmres -pc_type ilu
+	  # -snes_type newtonls -ts_max_snes_failures 30
 
-mpirun -s all -n 8 $exec $opts_exp < test.in |& tee out.log
+mpirun -s all -n 8 $exec $opts_imp < test.in |& tee out.log
